@@ -287,3 +287,23 @@ Estimación: de ~91 ms a ~45-50 ms por cuadro (**~20 FPS**). Para confirmarlo en
 - La predicción supone que el cuerpo sigue moviéndose igual durante un cuadro: en un cambio
   brusco de dirección, la prenda puede pasarse unos píxeles durante 1 cuadro (33 ms) hasta la
   siguiente detección.
+
+---
+
+# Sexta etapa: `main.py` separado en módulos
+
+`main.py` tenía 1275 líneas que mezclaban la interfaz, la cámara y el HUD. Ahora cada parte
+está en su archivo. **El funcionamiento no cambió**: el código se movió tal cual (se comprobó
+que las 33 funciones, clases y constantes son idénticas a las originales).
+
+| Archivo | Qué tiene |
+| --- | --- |
+| `main.py` | Sólo el punto de entrada (`python main.py` o `iniciar_probador.bat`, igual que antes) |
+| `config.py` | Constantes: rendimiento (`ANCHO_MEDIAPIPE`, `CADA_N_CUADROS_MEDIAPIPE`…), archivos, suavizado y colores |
+| `recursos.py` | Descarga del modelo, carpetas y nombres de las capturas |
+| `galeria.py` | Interfaz Tkinter: galería, pantalla "Elegiste…" y tabla de medidas |
+| `probador_camara.py` | Bucle de la cámara: detección, malla, escáner, capas y teclas |
+| `hud.py` | Textos de la barra superior e inferior y líneas de medidas (tecla V) |
+
+- `medir_rendimiento.py` ahora toma la configuración de `config.py` (antes tenía una copia).
+- Se quitaron imports que `main.py` no usaba (`datetime`, `mediapipe`, etc.).

@@ -15,10 +15,7 @@ from clothing_warper import deformar_malla_prenda
 from body_layering import componer_prenda_con_capas
 from catalogo import cargar_catalogo_completo, holgura_de_talle
 from ajuste_silueta import ajustar_prenda_completa
-
-ANCHO_PROCESO = 640  # igual que main.py
-ANCHO_MEDIAPIPE = 480
-CADA_N_CUADROS_MEDIAPIPE = 2
+from config import ANCHO_PROCESO, ANCHO_MEDIAPIPE, CADA_N_CUADROS_MEDIAPIPE  # los mismos que usa el probador
 
 
 def main():
