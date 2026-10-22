@@ -1,0 +1,21 @@
+# Archivos generados por Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Entornos virtuales
+.venv/
+env/
+venv/
+
+# Carpetas temporales
+.idea/
+.vscode/
+.venv_viejo/
+
+# Copias de respaldo hechas a mano (con git ya no hacen falta)
+respaldo_*/
+
+# Fotos y archivos generados al usar o probar el probador
+capturas/
+temp/

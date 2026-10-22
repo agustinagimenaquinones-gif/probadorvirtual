@@ -1,0 +1,6 @@
+# Probado con Python 3.14, mediapipe 1.0.1, opencv-python 5.0, numpy 2.5 y pillow 12.3.
+# Las versiones viejas de mediapipe (0.10.x) no se instalan en Python 3.13 o más nuevo.
+opencv-python>=4.8.0
+mediapipe>=1.0.1
+numpy>=1.24.0
+pillow>=10.0.0
