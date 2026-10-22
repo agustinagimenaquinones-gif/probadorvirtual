@@ -1,0 +1,8 @@
+# Copiar este archivo como mysql.ini (en esta misma carpeta) y completar la contraseña.
+# mysql.ini no se sube a git.
+[mysql]
+host = localhost
+port = 3306
+user = root
+password =
+database = probador_virtual

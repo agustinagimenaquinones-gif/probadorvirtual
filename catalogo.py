@@ -9,6 +9,7 @@ import cv2
 import numpy as np
 from clothing_geometry import detectar_puntos_clave_prenda
 from vista_espalda import cargar_espalda, es_archivo_espalda
+from config import USAR_MYSQL
 
 CARPETA_PRENDAS = "prendas"
 
@@ -324,15 +325,51 @@ def _agregar_espalda(item, ruta):
     return item
 
 
+def definicion_automatica(ruta):
+    """Datos por defecto de un PNG de 'prendas/' que no está declarado en el catálogo."""
+    nombre_archivo = os.path.splitext(os.path.basename(ruta))[0]
+    return {
+        "id": nombre_archivo,
+        "nombre": nombre_archivo.replace("_", " ").title(),
+        "precio": 18000,
+        "color": "Colección",
+        "talles": ["S", "M", "L"],
+        "archivo": ruta,
+        "descripcion": "Prenda de la colección boutique atelier.",
+        "margen_hombros": 0.38,
+        "margen_cuello": 0.20,
+        "calce": "regular",
+    }
+
+
+def obtener_definiciones():
+    """
+    Devuelve los datos de las prendas: de MySQL si está activado y responde,
+    o del catálogo escrito en este archivo si no.
+    """
+    if USAR_MYSQL:
+        try:
+            from conexion_mysql import leer_prendas
+            prendas = leer_prendas()
+            if prendas:
+                print(f"[Catálogo] {len(prendas)} prendas leídas de MySQL.")
+                return prendas
+            print("[Catálogo] La base MySQL no tiene prendas: ejecutá cargar_prendas_mysql.py. "
+                  "Se usa el catálogo de catalogo.py.")
+        except Exception as error:
+            print(f"[Catálogo] No se pudo leer MySQL ({error}). Se usa el catálogo de catalogo.py.")
+    return CATALOGO_PRENDAS
+
+
 def cargar_catalogo_completo():
     """
-    Carga el catálogo definido, precalcula los puntos anatómicos de la malla
-    y detecta automáticamente cualquier prenda nueva en 'prendas/' sin romper nada.
+    Carga el catálogo (MySQL o el definido acá), precalcula los puntos anatómicos de
+    la malla y detecta automáticamente cualquier prenda nueva en 'prendas/' sin romper nada.
     """
     catalogo_cargado = []
     rutas_procesadas = set()
 
-    for item in CATALOGO_PRENDAS:
+    for item in obtener_definiciones():
         ruta = item["archivo"]
         if os.path.exists(ruta):
             img_rgba = cv2.imread(ruta, cv2.IMREAD_UNCHANGED)
@@ -365,22 +402,11 @@ def cargar_catalogo_completo():
         if os.path.abspath(ruta) not in rutas_procesadas and not es_archivo_espalda(ruta):
             img_rgba = cv2.imread(ruta, cv2.IMREAD_UNCHANGED)
             if img_rgba is not None and img_rgba.shape[2] == 4:
-                nombre_archivo = os.path.splitext(os.path.basename(ruta))[0]
-                nombre_legible = nombre_archivo.replace("_", " ").title()
                 img_recortada = agregar_margen_transparente(recortar_bordes_alfa(img_rgba))
                 src_pts, tiene_mangas = detectar_puntos_clave_prenda(img_recortada)
 
                 catalogo_cargado.append({
-                    "id": nombre_archivo,
-                    "nombre": nombre_legible,
-                    "precio": 18000,
-                    "color": "Colección",
-                    "talles": ["S", "M", "L"],
-                    "archivo": ruta,
-                    "descripcion": "Prenda de la colección boutique atelier.",
-                    "margen_hombros": 0.38,
-                    "margen_cuello": 0.20,
-                    "calce": "regular",
+                    **definicion_automatica(ruta),
                     "imagen_cv": img_recortada,
                     "imagen_original_cv": img_rgba,
                     "src_puntos": src_pts,

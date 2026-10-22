@@ -23,6 +23,13 @@ MODEL_URL = "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pos
 CARPETA_PRENDAS = "prendas"
 CARPETA_CAPTURAS = "capturas"
 
+# Base de datos MySQL: si está activada, el catálogo se lee de la tabla 'prendas'.
+# Si MySQL no responde, se usa el catálogo escrito en catalogo.py (el probador
+# nunca deja de funcionar). Los datos de conexión van en MYSQL_ARCHIVO_CONFIG.
+USAR_MYSQL = True
+MYSQL_ARCHIVO_CONFIG = "base_datos/mysql.ini"
+MYSQL_TIEMPO_ESPERA = 3  # segundos antes de dar por caída la conexión
+
 # Factor multiplicador de holgura por defecto
 FACTOR_ANCHO_DEFAULT = 1.0
 FACTOR_AJUSTE_PASO = 0.05

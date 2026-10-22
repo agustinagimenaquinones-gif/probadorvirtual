@@ -19,3 +19,6 @@ respaldo_*/
 # Fotos y archivos generados al usar o probar el probador
 capturas/
 temp/
+
+# Datos de conexión a MySQL (tienen la contraseña)
+base_datos/mysql.ini
