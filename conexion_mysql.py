@@ -111,7 +111,7 @@ def _numero(valor):
 
 def leer_prendas():
     """
-    Devuelve las prendas activas con la misma forma que catalogo.CATALOGO_PRENDAS
+    Devuelve las prendas activas como diccionarios que usa el probador
     (id, nombre, precio, color, talles, archivo, medidas_talles, etc.).
     """
     conexion = conectar()
@@ -191,43 +191,29 @@ def _id_por_nombre(cursor, tabla, columna_id, nombre, crear=False):
     return cursor.lastrowid
 
 
-def guardar_prenda(cursor, prenda, categoria, stock=0, actualizar=False):
+def guardar_prenda(cursor, prenda, categoria, stock=0):
     """
-    Guarda una prenda con su color, sus talles en el inventario y sus medidas.
-    Devuelve 'nueva', 'actualizada' o 'existente'. Si la prenda ya está y
-    actualizar es False, no se toca (para no pisar cambios hechos en la base).
+    Guarda una prenda nueva con su color, sus talles en el inventario y sus medidas.
+    Devuelve 'nueva', o 'existente' si ya había una prenda con ese código (no se toca,
+    para no pisar los cambios hechos en la base).
     """
     cursor.execute("SELECT id_prenda FROM prendas WHERE codigo = %s", (prenda["id"],))
-    fila = cursor.fetchone()
-    if fila and not actualizar:
+    if cursor.fetchone():
         return "existente"
 
-    valores = (
-        prenda["nombre"], prenda.get("descripcion", ""), categoria, prenda.get("precio", 0),
-        prenda["archivo"].replace("\\", "/"), prenda.get("calce", "regular"),
-        prenda.get("margen_hombros", 0.38), prenda.get("margen_cuello", 0.20),
-        prenda.get("rotacion", 0), bool(prenda.get("voltear_horizontal", False)),
-        bool(prenda.get("voltear_vertical", False)),
+    cursor.execute(
+        "INSERT INTO prendas (codigo, nombre, descripcion, categoria, precio, imagen_url, calce, "
+        "margen_hombros, margen_cuello, rotacion, voltear_horizontal, voltear_vertical) "
+        "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+        (
+            prenda["id"], prenda["nombre"], prenda.get("descripcion", ""), categoria,
+            prenda.get("precio", 0), prenda["archivo"].replace("\\", "/"),
+            prenda.get("calce", "regular"), prenda.get("margen_hombros", 0.38),
+            prenda.get("margen_cuello", 0.20), prenda.get("rotacion", 0),
+            bool(prenda.get("voltear_horizontal", False)), bool(prenda.get("voltear_vertical", False)),
+        ),
     )
-    if fila:
-        id_prenda = fila[0]
-        cursor.execute(
-            "UPDATE prendas SET nombre = %s, descripcion = %s, categoria = %s, precio = %s, "
-            "imagen_url = %s, calce = %s, margen_hombros = %s, margen_cuello = %s, "
-            "rotacion = %s, voltear_horizontal = %s, voltear_vertical = %s "
-            "WHERE id_prenda = %s",
-            valores + (id_prenda,),
-        )
-        resultado = "actualizada"
-    else:
-        cursor.execute(
-            "INSERT INTO prendas (nombre, descripcion, categoria, precio, imagen_url, calce, "
-            "margen_hombros, margen_cuello, rotacion, voltear_horizontal, voltear_vertical, codigo) "
-            "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
-            valores + (prenda["id"],),
-        )
-        id_prenda = cursor.lastrowid
-        resultado = "nueva"
+    id_prenda = cursor.lastrowid
 
     id_color = _id_por_nombre(cursor, "colores", "id_color", prenda.get("color", "Colección"), crear=True)
     for talle in prenda.get("talles") or []:
@@ -247,4 +233,4 @@ def guardar_prenda(cursor, prenda, categoria, stock=0, actualizar=False):
             "cadera = nueva.cadera, hombros = nueva.hombros, largo = nueva.largo",
             (id_prenda, id_talle, m["pecho"], m["cintura"], m["cadera"], m["hombros"], m["largo"]),
         )
-    return resultado
+    return "nueva"

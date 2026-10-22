@@ -39,166 +39,11 @@ CALCES_VALIDOS = ("entallado", "regular", "holgado")
 MARGEN_TRANSPARENTE = 6
 
 # -------------------------------------------------------------------------
+# CATÁLOGO DE PRENDAS
+# Los datos de las prendas (nombre, precio, talles, medidas, etc.) están en la
+# base MySQL (ver conexion_mysql.py). Para agregar una prenda: copiar el PNG en
+# 'prendas/' y ejecutar cargar_prendas_mysql.py.
 # -------------------------------------------------------------------------
-# CATÁLOGO DE PRENDAS (ESTRUCTURA MODULAR Y EXTENSIBLE)
-# Puedes agregar aquí fácilmente nuevas prendas sin modificar la lógica del código.
-# -------------------------------------------------------------------------
-CATALOGO_PRENDAS = [
-    {
-        "id": "polo_ralph_lauren",
-        "calce": "regular",
-        "nombre": "Chomba Polo Ralph Lauren",
-        "precio": 38500,
-        "color": "Azul Marino y Blanco",
-        "talles": ["S", "M", "L", "XL"],
-        "archivo": "prendas/polo_ralph_lauren.png",
-        "descripcion": "Chomba clásica Ralph Lauren azul marino con cuello estructurado, icónico Big Pony blanco, escudo '20' y número '3' bordado en la manga.",
-        "margen_hombros": 0.38,
-        "margen_cuello": 0.20,
-        "voltear_horizontal": False,
-        "rotacion": 0,
-        "medidas_talles": {
-            "S":  {"pecho": 94, "cintura": 86, "cadera": 94, "hombros": 43, "largo": 69},
-            "M":  {"pecho": 100, "cintura": 92, "cadera": 100, "hombros": 45, "largo": 72},
-            "L":  {"pecho": 106, "cintura": 98, "cadera": 106, "hombros": 47, "largo": 75},
-            "XL": {"pecho": 112, "cintura": 104, "cadera": 112, "hombros": 49, "largo": 78},
-        }
-    },
-    {
-        "id": "top_asimetrico_negro",
-        "calce": "entallado",
-        "nombre": "Top Asimétrico Drapeado Negro",
-        "precio": 34000,
-        "color": "Negro Seda",
-        "talles": ["S", "M", "L"],
-        "archivo": "prendas/top_asimetrico_negro.png",
-        "descripcion": "Exclusivo diseño de alta costura con escote halter drapeado, un hombro al descubierto y elegante fular lateral en satén negro profundo.",
-        "margen_hombros": 0.16,
-        "margen_cuello": 0.25,
-        "voltear_horizontal": False,
-        "rotacion": 0,
-        "medidas_talles": {
-            "S": {"pecho": 86, "cintura": 66, "cadera": 90, "hombros": 36, "largo": 76},
-            "M": {"pecho": 92, "cintura": 72, "cadera": 96, "hombros": 38, "largo": 79},
-            "L": {"pecho": 98, "cintura": 78, "cadera": 102, "hombros": 40, "largo": 82},
-        }
-    },
-    {
-        "id": "polo_azul_marino",
-        "calce": "regular",
-        "nombre": "Chomba Polo Azul Marino",
-        "precio": 28500,
-        "color": "Azul Marino y Blanco",
-        "talles": ["S", "M", "L", "XL"],
-        "archivo": "prendas/polo_azul_marino.png",
-        "descripcion": "Chomba tipo polo azul marino con cuello blanco estructurado, tapeta y ribete en mangas.",
-        "margen_hombros": 0.38,
-        "margen_cuello": 0.20,
-        "voltear_horizontal": False,
-        "rotacion": 0,
-        "medidas_talles": {
-            "S":  {"pecho": 92, "cintura": 84, "cadera": 92, "hombros": 42, "largo": 68},
-            "M":  {"pecho": 98, "cintura": 90, "cadera": 98, "hombros": 44, "largo": 71},
-            "L":  {"pecho": 104, "cintura": 96, "cadera": 104, "hombros": 46, "largo": 74},
-            "XL": {"pecho": 110, "cintura": 102, "cadera": 110, "hombros": 48, "largo": 77},
-        }
-    },
-    {
-        "id": "remera_blanca",
-        "calce": "entallado",
-        "nombre": "Remera Básica Blanca",
-        "precio": 18000,
-        "color": "Blanco",
-        "talles": ["S", "M", "L"],
-        "archivo": "prendas/remera_blanca.png",
-        "descripcion": "Remera de algodón peinado con escote femenino suave, fresca y combinable.",
-        "margen_hombros": 0.38,
-        "margen_cuello": 0.20,
-        "voltear_horizontal": False,
-        "rotacion": 0,
-        "medidas_talles": {
-            "S": {"pecho": 88, "cintura": 70, "cadera": 92, "hombros": 39, "largo": 64},
-            "M": {"pecho": 94, "cintura": 76, "cadera": 98, "hombros": 41, "largo": 66},
-            "L": {"pecho": 100, "cintura": 82, "cadera": 104, "hombros": 43, "largo": 68},
-        }
-    },
-    {
-        "id": "remera_azul",
-        "calce": "entallado",
-        "nombre": "Remera Clásica Azul",
-        "precio": 18000,
-        "color": "Azul",
-        "talles": ["S", "M", "L"],
-        "archivo": "prendas/remera_azul.png",
-        "descripcion": "Tono azul cobalto intenso de corte estilizado para un look diario impecable.",
-        "margen_hombros": 0.38,
-        "margen_cuello": 0.20,
-        "voltear_horizontal": False,
-        "rotacion": 0,
-        "medidas_talles": {
-            "S": {"pecho": 88, "cintura": 70, "cadera": 92, "hombros": 39, "largo": 64},
-            "M": {"pecho": 94, "cintura": 76, "cadera": 98, "hombros": 41, "largo": 66},
-            "L": {"pecho": 100, "cintura": 82, "cadera": 104, "hombros": 43, "largo": 68},
-        }
-    },
-    {
-        "id": "remera_negra",
-        "calce": "entallado",
-        "nombre": "Remera Urbana Negra",
-        "precio": 19500,
-        "color": "Negro",
-        "talles": ["S", "M", "L", "XL"],
-        "archivo": "prendas/remera_negra.png",
-        "descripcion": "Prenda básica en negro profundo, entalle sofisticado y textura aterciopelada.",
-        "margen_hombros": 0.38,
-        "margen_cuello": 0.20,
-        "voltear_horizontal": False,
-        "rotacion": 0,
-        "medidas_talles": {
-            "S":  {"pecho": 88, "cintura": 70, "cadera": 92, "hombros": 39, "largo": 64},
-            "M":  {"pecho": 94, "cintura": 76, "cadera": 98, "hombros": 41, "largo": 66},
-            "L":  {"pecho": 100, "cintura": 82, "cadera": 104, "hombros": 43, "largo": 68},
-            "XL": {"pecho": 106, "cintura": 88, "cadera": 110, "hombros": 45, "largo": 70},
-        }
-    },
-    {
-        "id": "remera_roja",
-        "calce": "entallado",
-        "nombre": "Remera Coral Roja",
-        "precio": 18500,
-        "color": "Rojo",
-        "talles": ["S", "M", "L"],
-        "archivo": "prendas/remera_roja.png",
-        "descripcion": "Diseño en rojo frambuesa con escote femenino y costuras reforzadas.",
-        "margen_hombros": 0.38,
-        "margen_cuello": 0.20,
-        "voltear_horizontal": False,
-        "rotacion": 0,
-        "medidas_talles": {
-            "S": {"pecho": 88, "cintura": 70, "cadera": 92, "hombros": 39, "largo": 64},
-            "M": {"pecho": 94, "cintura": 76, "cadera": 98, "hombros": 41, "largo": 66},
-            "L": {"pecho": 100, "cintura": 82, "cadera": 104, "hombros": 43, "largo": 68},
-        }
-    },
-    {
-        "id": "top_satin",
-        "calce": "entallado",
-        "nombre": "Top Satinado Champagne",
-        "precio": 24000,
-        "color": "Champagne",
-        "talles": ["S", "M"],
-        "archivo": "prendas/top_satin_champagne.png",
-        "descripcion": "Exclusivo top halter de satén de seda drapeado con cuello alto de alta costura.",
-        "margen_hombros": 0.16,
-        "margen_cuello": 0.26,
-        "voltear_horizontal": False,
-        "rotacion": 0,
-        "medidas_talles": {
-            "S": {"pecho": 86, "cintura": 68, "cadera": 90, "hombros": 36, "largo": 62},
-            "M": {"pecho": 92, "cintura": 74, "cadera": 96, "hombros": 38, "largo": 65},
-        }
-    }
-]
 
 
 def obtener_medidas_talle(prenda, talle):
@@ -344,26 +189,30 @@ def definicion_automatica(ruta):
 
 def obtener_definiciones():
     """
-    Devuelve los datos de las prendas: de MySQL si está activado y responde,
-    o del catálogo escrito en este archivo si no.
+    Devuelve los datos de las prendas guardados en MySQL. Si MySQL no responde,
+    devuelve una lista vacía y las prendas de 'prendas/' se muestran con datos
+    por defecto (precio, talles y medidas genéricos), así el probador no se cae.
     """
-    if USAR_MYSQL:
-        try:
-            from conexion_mysql import leer_prendas
-            prendas = leer_prendas()
-            if prendas:
-                print(f"[Catálogo] {len(prendas)} prendas leídas de MySQL.")
-                return prendas
-            print("[Catálogo] La base MySQL no tiene prendas: ejecutá cargar_prendas_mysql.py. "
-                  "Se usa el catálogo de catalogo.py.")
-        except Exception as error:
-            print(f"[Catálogo] No se pudo leer MySQL ({error}). Se usa el catálogo de catalogo.py.")
-    return CATALOGO_PRENDAS
+    if not USAR_MYSQL:
+        print("[Catálogo] MySQL desactivado en config.py: las prendas usan datos por defecto.")
+        return []
+    try:
+        from conexion_mysql import leer_prendas
+        prendas = leer_prendas()
+        if prendas:
+            print(f"[Catálogo] {len(prendas)} prendas leídas de MySQL.")
+        else:
+            print("[Catálogo] La base MySQL no tiene prendas: ejecutá cargar_prendas_mysql.py.")
+        return prendas
+    except Exception as error:
+        print(f"[Catálogo] No se pudo leer MySQL ({error}). "
+              "Las prendas de 'prendas/' usan datos por defecto.")
+        return []
 
 
 def cargar_catalogo_completo():
     """
-    Carga el catálogo (MySQL o el definido acá), precalcula los puntos anatómicos de
+    Carga el catálogo de MySQL, precalcula los puntos anatómicos de
     la malla y detecta automáticamente cualquier prenda nueva en 'prendas/' sin romper nada.
     """
     catalogo_cargado = []

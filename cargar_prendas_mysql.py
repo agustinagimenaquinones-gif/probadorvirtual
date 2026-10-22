@@ -1,14 +1,17 @@
 # ==========================================================
 # PROYECTO: PROBADOR VIRTUAL INTELIGENTE
-# HERRAMIENTA: CARGAR LAS PRENDAS DE 'prendas/' EN MYSQL
+# HERRAMIENTA: REGISTRAR EN MYSQL LAS PRENDAS NUEVAS DE 'prendas/'
 # ==========================================================
+# El catálogo vive en MySQL. Cuando se copia un PNG nuevo en 'prendas/', este
+# script lo registra con datos por defecto (precio, talles S/M/L, calce regular),
+# que después se corrigen en MySQL Workbench. Las prendas que ya están en la base
+# no se tocan.
+#
 # Uso (desde la carpeta del proyecto):
-#     .venv\Scripts\python.exe cargar_prendas_mysql.py --crear-tablas
+#     .venv\Scripts\python.exe cargar_prendas_mysql.py
 #
 #   --crear-tablas  ejecuta antes base_datos/probador_virtual_mysql.sql
 #                   (no borra nada: sólo crea lo que falta).
-#   --actualizar    pisa los datos de las prendas que ya estaban en la base
-#                   con los de catalogo.py (por defecto se dejan como están).
 #   --stock N       stock inicial de cada talle nuevo (por defecto 0).
 
 import argparse
@@ -16,7 +19,7 @@ import glob
 import os
 import sys
 
-from catalogo import CARPETA_PRENDAS, CATALOGO_PRENDAS, definicion_automatica
+from catalogo import CARPETA_PRENDAS, definicion_automatica
 from conexion_mysql import conectar, crear_tablas, guardar_prenda, leer_configuracion
 from vista_espalda import es_archivo_espalda
 
@@ -32,21 +35,25 @@ def categoria_de(prenda):
     return CATEGORIAS.get(prefijo, "Otros")
 
 
-def prendas_de_la_carpeta():
-    """Las prendas declaradas en catalogo.py más cualquier PNG nuevo de 'prendas/'."""
-    prendas = [p for p in CATALOGO_PRENDAS if os.path.exists(p["archivo"])]
-    declaradas = {os.path.abspath(p["archivo"]) for p in prendas}
-    for ruta in sorted(glob.glob(os.path.join(CARPETA_PRENDAS, "*.png"))):
-        if os.path.abspath(ruta) not in declaradas and not es_archivo_espalda(ruta):
-            prendas.append(definicion_automatica(ruta))
-    return prendas
+def rutas_registradas(cursor):
+    """Rutas de imagen de todas las prendas de la base (activas o no)."""
+    cursor.execute("SELECT imagen_url FROM prendas")
+    return {os.path.abspath(fila[0]) for fila in cursor.fetchall()}
+
+
+def prendas_nuevas_de_la_carpeta(registradas):
+    """Los PNG de 'prendas/' que todavía no están en la base."""
+    return [
+        definicion_automatica(ruta)
+        for ruta in sorted(glob.glob(os.path.join(CARPETA_PRENDAS, "*.png")))
+        if os.path.abspath(ruta) not in registradas and not es_archivo_espalda(ruta)
+    ]
 
 
 def main():
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
-    parser = argparse.ArgumentParser(description="Carga las prendas de 'prendas/' en MySQL.")
+    parser = argparse.ArgumentParser(description="Registra en MySQL las prendas nuevas de 'prendas/'.")
     parser.add_argument("--crear-tablas", action="store_true")
-    parser.add_argument("--actualizar", action="store_true")
     parser.add_argument("--stock", type=int, default=0)
     args = parser.parse_args()
     if args.stock < 0:
@@ -64,14 +71,13 @@ def main():
         print("Revisá base_datos/mysql.ini (copiá mysql.ini.ejemplo y completá la contraseña).")
         return 1
 
-    contadores = {"nueva": 0, "actualizada": 0, "existente": 0}
+    nuevas = 0
     try:
         cursor = conexion.cursor()
-        for prenda in prendas_de_la_carpeta():
-            resultado = guardar_prenda(cursor, prenda, categoria_de(prenda),
-                                       stock=args.stock, actualizar=args.actualizar)
-            contadores[resultado] += 1
-            print(f"  [{resultado}] {prenda['id']} - {prenda['nombre']}")
+        for prenda in prendas_nuevas_de_la_carpeta(rutas_registradas(cursor)):
+            if guardar_prenda(cursor, prenda, categoria_de(prenda), stock=args.stock) == "nueva":
+                nuevas += 1
+                print(f"  [nueva] {prenda['id']} - {prenda['nombre']}")
         conexion.commit()
     except Exception as error:
         conexion.rollback()
@@ -80,8 +86,7 @@ def main():
     finally:
         conexion.close()
 
-    print(f"[OK] Nuevas: {contadores['nueva']}, actualizadas: {contadores['actualizada']}, "
-          f"sin cambios: {contadores['existente']}.")
+    print(f"[OK] Prendas nuevas registradas: {nuevas}.")
     return 0
 
 
