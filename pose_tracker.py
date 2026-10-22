@@ -6,6 +6,7 @@
 import os
 import math
 import time
+import threading
 import numpy as np
 import cv2
 import mediapipe as mp
@@ -21,14 +22,24 @@ class PoseTracker:
     de medidas corporales dinámicas.
     """
     def __init__(self, model_path="pose_landmarker_lite.task", alpha_suavizado=0.30,
-                 ancho_mediapipe=480, cada_n_cuadros=2):
+                 ancho_mediapipe=480, cada_n_cuadros=2, en_segundo_plano=False):
         self.model_path = model_path
         # Rendimiento: MediaPipe es lo más lento del probador (~80 ms por cuadro en una
         # notebook). Se corre sobre una imagen de 'ancho_mediapipe' px y sólo 1 de cada
         # 'cada_n_cuadros' cuadros; en los otros se predicen los puntos con la velocidad
         # del cuerpo y se corre la silueta anterior (ver _predecir_cuadro).
+        # Con en_segundo_plano=True, MediaPipe corre en otro hilo, en paralelo con el
+        # dibujo de la prenda, y 'cada_n_cuadros' no se usa (ver _procesar_en_segundo_plano).
         self.ancho_mediapipe = ancho_mediapipe
         self.cada_n_cuadros = max(1, int(cada_n_cuadros))
+        self.en_segundo_plano = en_segundo_plano
+        self._hilo = None
+        self._hilo_ocupado = False
+        self._hay_trabajo = threading.Event()
+        self._candado = threading.Lock()
+        self._trabajo = None
+        self._resultado_listo = None
+        self._cerrando = False
         self._ultima_deteccion = None   # puntos, Z, visibilidad, máscara y tiempo de la última detección
         self._velocidad = {}            # px/s de cada punto entre las dos últimas detecciones
         self._cuadros_desde_deteccion = 0
@@ -87,7 +98,11 @@ class PoseTracker:
         self.medidas.reiniciar()
 
     def cerrar(self):
-        """Libera los recursos del detector."""
+        """Libera los recursos del detector (y espera a que termine el hilo, si hay)."""
+        self._cerrando = True
+        self._hay_trabajo.set()
+        if self._hilo is not None:
+            self._hilo.join(timeout=2.0)
         if self.detector:
             self.detector.close()
 
@@ -110,6 +125,9 @@ class PoseTracker:
                 timestamp_ms = self._ultimo_timestamp_ms + 1
         self._ultimo_timestamp_ms = timestamp_ms
 
+        if self.en_segundo_plano:
+            return self._procesar_en_segundo_plano(frame_bgr, ancho, alto, timestamp_ms)
+
         # Saltear cuadros: si la última detección fue buena, en los cuadros intermedios
         # se predice la pose en lugar de volver a correr MediaPipe.
         if (self._ultima_deteccion is not None and self.frames_perdidos == 0
@@ -118,6 +136,65 @@ class PoseTracker:
             return self._predecir_cuadro(ancho, alto, timestamp_ms)
         self._cuadros_desde_deteccion = 0
 
+        resultado = self.detector.detect_for_video(self._imagen_para_mediapipe(frame_bgr, ancho, alto), timestamp_ms)
+        if not self._leer_resultado(resultado, ancho, alto, timestamp_ms):
+            return None, None
+
+        det = self._ultima_deteccion
+        info_anatomica = self._actualizar_con_puntos(det["p_raw"], det["z_raw"], det["vis"], ancho, alto, det["t"])
+        info_anatomica["orientacion"] = self.actualizar_orientacion(info_anatomica["orientacion_cuadro"])
+        self.ultima_mascara = det["mascara"]
+        self.agregar_medidas(info_anatomica, det["mascara"])
+        return det["lms"], info_anatomica
+
+    # -------------------------------------------------------------------------
+    # MEDIAPIPE EN SEGUNDO PLANO
+    # -------------------------------------------------------------------------
+    def _procesar_en_segundo_plano(self, frame_bgr, ancho, alto, timestamp_ms):
+        """
+        MediaPipe trabaja en otro hilo (otro núcleo del procesador) mientras este cuadro
+        se sigue dibujando. Cada cuadro usa la detección más reciente, adelantada hasta
+        "ahora" con la velocidad del cuerpo (así se compensa la demora de la detección).
+        """
+        if self._hilo is None:
+            self._hilo = threading.Thread(target=self._bucle_detector, daemon=True)
+            self._hilo.start()
+        if not self._hilo_ocupado:  # el detector está libre: le pasamos este cuadro
+            self._hilo_ocupado = True
+            self._trabajo = (self._imagen_para_mediapipe(frame_bgr, ancho, alto), timestamp_ms, ancho, alto)
+            self._hay_trabajo.set()
+
+        with self._candado:
+            listo, self._resultado_listo = self._resultado_listo, None
+        fresca = False
+        if listo is not None:
+            resultado, ts_det, ancho_det, alto_det = listo
+            if not self._leer_resultado(resultado, ancho_det, alto_det, ts_det):
+                return None, None
+            fresca = True
+        if self._ultima_deteccion is None or self.frames_perdidos > 0:
+            return None, None
+        return self._predecir_cuadro(ancho, alto, timestamp_ms, fresca=fresca)
+
+    def _bucle_detector(self):
+        """Hilo del detector: espera un cuadro, corre MediaPipe y deja el resultado listo."""
+        while True:
+            self._hay_trabajo.wait()
+            self._hay_trabajo.clear()
+            if self._cerrando:
+                return
+            imagen, ts, ancho, alto = self._trabajo
+            try:
+                resultado = self.detector.detect_for_video(imagen, ts)
+            except Exception as e:
+                print(f"[AVISO] MediaPipe falló en un cuadro: {e}")
+                resultado = None
+            with self._candado:
+                self._resultado_listo = (resultado, ts, ancho, alto)
+            self._hilo_ocupado = False
+
+    def _imagen_para_mediapipe(self, frame_bgr, ancho, alto):
+        """Imagen chica en RGB para MediaPipe."""
         # Optimización de rendimiento para notebooks: MediaPipe trabaja sobre una imagen
         # chica (el modelo igual la reduce a 256 px); los puntos vuelven en proporciones.
         if ancho > self.ancho_mediapipe:
@@ -135,11 +212,14 @@ class PoseTracker:
             frame_proc = frame_bgr
 
         frame_rgb = cv2.cvtColor(frame_proc, cv2.COLOR_BGR2RGB)
-        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=frame_rgb)
-        
-        resultado = self.detector.detect_for_video(mp_image, timestamp_ms)
-        
-        if not resultado.pose_landmarks or len(resultado.pose_landmarks) == 0:
+        return mp.Image(image_format=mp.ImageFormat.SRGB, data=frame_rgb)
+
+    def _leer_resultado(self, resultado, ancho, alto, timestamp_ms):
+        """
+        Lee la detección de MediaPipe: puntos, profundidad, visibilidad y silueta, y
+        calcula la velocidad de cada punto. Devuelve False si no se vio a la persona.
+        """
+        if resultado is None or not resultado.pose_landmarks or len(resultado.pose_landmarks) == 0:
             self.frames_perdidos += 1
             if self.frames_perdidos > self.max_frames_hold:
                 self.puntos_suavizados = None
@@ -148,7 +228,7 @@ class PoseTracker:
                     f.reset()
                 for f in self.filtros_z.values():
                     f.reset()
-            return None, None
+            return False
 
         self.frames_perdidos = 0
         lms = resultado.pose_landmarks[0]
@@ -218,21 +298,18 @@ class PoseTracker:
             self._velocidad = {}
         self._ultima_deteccion = {"t": t_sec, "p_raw": p_raw, "z_raw": z_raw, "vis": vis,
                                   "mascara": mascara, "lms": lms}
-
-        info_anatomica = self._actualizar_con_puntos(p_raw, z_raw, vis, ancho, alto, t_sec)
-        info_anatomica["orientacion"] = self.actualizar_orientacion(info_anatomica["orientacion_cuadro"])
-        self.ultima_mascara = mascara
-        self.agregar_medidas(info_anatomica, mascara)
-        return lms, info_anatomica
+        return True
 
     # Hasta cuánto tiempo hacia adelante se extrapola el movimiento (segundos)
-    MAX_PREDICCION_S = 0.10
+    MAX_PREDICCION_S = 0.15
 
-    def _predecir_cuadro(self, ancho, alto, timestamp_ms):
+    def _predecir_cuadro(self, ancho, alto, timestamp_ms, fresca=False):
         """
-        Cuadro salteado: no corre MediaPipe. Avanza cada punto con su velocidad desde
-        la última detección y corre la silueta anterior lo mismo que se movió el torso.
+        Cuadro sin detección nueva: no corre MediaPipe. Avanza cada punto con su velocidad
+        desde la última detección y corre la silueta anterior lo mismo que se movió el torso.
         Cuesta ~1 ms en lugar de ~80 ms.
+        fresca=True (modo en segundo plano): la detección acaba de llegar, así que también
+        se actualizan la vista (frente / espalda / perfil) y las medidas de la silueta.
         """
         det = self._ultima_deteccion
         t_sec = float(timestamp_ms) / 1000.0
@@ -249,9 +326,12 @@ class PoseTracker:
                                          borderMode=cv2.BORDER_CONSTANT, borderValue=0)
 
         info_anatomica = self._actualizar_con_puntos(p_pred, det["z_raw"], det["vis"], ancho, alto, t_sec)
-        info_anatomica["orientacion"] = self.orientacion  # la vista sólo cambia con detecciones reales
+        if fresca:
+            info_anatomica["orientacion"] = self.actualizar_orientacion(info_anatomica["orientacion_cuadro"])
+        else:
+            info_anatomica["orientacion"] = self.orientacion  # la vista sólo cambia con detecciones reales
         self.ultima_mascara = mascara
-        self.agregar_medidas(info_anatomica, mascara, medir=False)
+        self.agregar_medidas(info_anatomica, mascara, medir=fresca)
         return det["lms"], info_anatomica
 
     def _actualizar_con_puntos(self, p_raw, z_raw, vis, ancho, alto, t_sec):

@@ -47,12 +47,13 @@ def recortar_prenda_a_silueta(parche_rgba, xmin, ymin, mascara, info_anatomica, 
         return cv2.dilate(img, k)
 
     permitido = dilatar(cuerpo, margen)
+    cuerpo_margen_manga = dilatar(cuerpo, margen_manga)  # se usa en hombros y mangas
 
     # Hombros: la tela se apoya sobre ellos, así que arriba se acepta un margen mayor
     y_axilas = int(max(info_anatomica["p_sh_l"][1], info_anatomica["p_sh_r"][1]) - ymin
                    + float(info_anatomica["dist_torso"]) * 0.20)
     if y_axilas > 0:
-        superior = dilatar(cuerpo, margen_manga)
+        superior = cuerpo_margen_manga.copy()
         superior[min(alto_p, y_axilas):, :] = 0
         permitido = np.maximum(permitido, superior)
 
@@ -74,7 +75,7 @@ def recortar_prenda_a_silueta(parche_rgba, xmin, ymin, mascara, info_anatomica, 
                              p_b + afuera * grosor, p_a + afuera * grosor - eje / largo * grosor * 0.3],
                             dtype=np.int32)
         cv2.fillConvexPoly(zona_brazos, poligono, 255)
-    permitido = np.maximum(permitido, cv2.bitwise_and(dilatar(cuerpo, margen_manga), zona_brazos))
+    permitido = np.maximum(permitido, cv2.bitwise_and(cuerpo_margen_manga, zona_brazos))
 
     # Brazos por DELANTE de la prenda: más allá del largo de la manga, el brazo tapa
     # la tela del torso (por ejemplo, con los brazos colgando al costado del cuerpo).
@@ -194,20 +195,20 @@ def componer_prenda_con_capas(frame_bgr, parche_rgba, xmin, ymin, xmax, ymax, in
             cx_local = float(p_nose[0]) - xmin
             columnas = np.arange(parche_rgba.shape[1], dtype=np.float32)
             en_franja = np.clip(1.0 - (np.abs(columnas - cx_local) - medio_franja) / 12.0, 0.0, 1.0)
-            for y_row in range(max(0, chin_local_y - fade_len), min(parche_rgba.shape[0], chin_local_y + fade_len)):
-                factor = np.clip((y_row - (chin_local_y - fade_len)) / float(2 * fade_len), 0.0, 1.0)
-                parche_alfa[y_row, :] *= 1.0 - (1.0 - factor) * en_franja
+            filas_fade = np.arange(max(0, chin_local_y - fade_len), min(parche_rgba.shape[0], chin_local_y + fade_len))
+            if len(filas_fade):
+                factor = np.clip((filas_fade - (chin_local_y - fade_len)) / float(2 * fade_len), 0.0, 1.0)[:, None]
+                parche_alfa[filas_fade, :] *= 1.0 - (1.0 - factor) * en_franja[None, :]
             arriba = slice(0, max(0, chin_local_y - fade_len))
             parche_alfa[arriba, :] *= (1.0 - en_franja)[None, :]
 
     # 3. Fusión Alfa de la prenda sobre el cuerpo
+    # (sobre todo el recuadro de una vez: más rápido que seleccionar píxel por píxel)
     mask_valida = parche_alfa > 0.02
     if np.any(mask_valida):
-        alpha_3c = parche_alfa[mask_valida, np.newaxis]
-        roi_fondo[mask_valida] = (
-            roi_fondo[mask_valida] * (1.0 - alpha_3c) +
-            parche_bgr[mask_valida] * alpha_3c
-        ).astype(np.uint8)
+        alpha_3c = parche_alfa[:, :, np.newaxis]
+        mezcla = (roi_fondo * (1.0 - alpha_3c) + parche_bgr * alpha_3c).astype(np.uint8)
+        np.copyto(roi_fondo, mezcla, where=mask_valida[:, :, np.newaxis])
 
     # 4. CAPA SUPERIOR: Brazos y Manos al frente (Oclusión realista)
     # Si la persona cruza los brazos o los sostiene frente al pecho:

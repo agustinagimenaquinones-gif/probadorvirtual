@@ -138,9 +138,12 @@ def _deformar_en_una_pasada(img_src, src_pts, dst_pts, xmin, ymin, patch_w, patc
     if not np.any(etiquetas):
         return None
     ys, xs = np.mgrid[0:patch_h, 0:patch_w].astype(np.float32)
-    m = inversas[etiquetas]  # (alto, ancho, 2, 3): la transformación de cada píxel
-    map_x = m[..., 0, 0] * xs + m[..., 0, 1] * ys + m[..., 0, 2]
-    map_y = m[..., 1, 0] * xs + m[..., 1, 1] * ys + m[..., 1, 2]
+    # La transformación de cada píxel: se busca cada coeficiente por separado (más
+    # rápido que armar una tabla de alto x ancho x 2 x 3)
+    def coef(fila, col):
+        return inversas[:, fila, col][etiquetas]
+    map_x = coef(0, 0) * xs + coef(0, 1) * ys + coef(0, 2)
+    map_y = coef(1, 0) * xs + coef(1, 1) * ys + coef(1, 2)
     sin_tela = etiquetas == 0
     map_x[sin_tela] = -1.0
     map_y[sin_tela] = -1.0

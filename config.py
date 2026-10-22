@@ -11,6 +11,9 @@ ANCHO_PANTALLA = 1280
 # 1 de cada N cuadros (en los demás se predice la pose con la velocidad del cuerpo).
 ANCHO_MEDIAPIPE = 480
 CADA_N_CUADROS_MEDIAPIPE = 2
+# True: MediaPipe corre en otro hilo, en paralelo con el dibujo de la prenda (aprovecha
+# otro núcleo del procesador; CADA_N_CUADROS_MEDIAPIPE no se usa). False: un paso por vez.
+MEDIAPIPE_EN_SEGUNDO_PLANO = True
 
 # -------------------------------------------------------------------------
 # CONSTANTES Y CONFIGURACIÓN DEL SISTEMA

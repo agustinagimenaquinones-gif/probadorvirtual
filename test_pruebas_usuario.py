@@ -610,8 +610,76 @@ def ejecutar_todas_las_pruebas():
           f" | silueta predicha corrida máx {np.max(np.abs(error_mascara)):.1f} px")
     print("  [OK] Prueba 20 superada: saltear cuadros no hace perder a la persona.")
 
+    # =============================================================
+    # PRUEBA 21: MEDIAPIPE EN SEGUNDO PLANO (EN PARALELO CON EL DIBUJO)
+    # =============================================================
+    print("\n[PRUEBA 21] MediaPipe en otro hilo: el probador no espera y la prenda no queda atrás...")
+    import time as _time
+
+    class _DetectorLento(_DetectorSimulado):
+        """Como MediaPipe en una notebook: tarda 60 ms por detección."""
+        def __init__(self):
+            super().__init__()
+            self.escenas = {}
+        def detect_for_video(self, imagen, timestamp_ms):
+            _time.sleep(0.060)
+            self.llamadas += 1
+            lms_s, mascara_s = self.escenas[timestamp_ms]
+            return type("R", (), {"pose_landmarks": [lms_s], "segmentation_masks": [_Mascara(mascara_s)]})()
+
+    tr = PoseTracker(en_segundo_plano=True)
+    tr.detector.close()
+    tr.detector = _DetectorLento()
+    # La persona camina a 240 px por segundo de tiempo real (como una persona de verdad,
+    # aunque la compu se atrase en algún cuadro)
+    escenas_por_cx = {}
+    def escena_en(cx):
+        if cx not in escenas_por_cx:
+            escenas_por_cx[cx] = sp.crear_persona_sintetica("rectangulo", ancho=640, alto=360, cx=cx, cy=90,
+                                                            ancho_hombros=110, largo_torso=140)
+        return escenas_por_cx[cx]
+    for cx in range(200, 450):  # se preparan antes para que no demoren el bucle
+        escena_en(cx)
+    n_cuadros = 30
+    errores, sin_resultado, esperas = [], 0, []
+    inicio = _time.perf_counter()
+    for i in range(n_cuadros):
+        while _time.perf_counter() < inicio + i / 30.0:  # la cámara entrega hasta 30 cuadros por segundo
+            _time.sleep(0.001)
+        t_real = _time.perf_counter() - inicio
+        cx_i = 200 + int(round(240 * t_real))
+        fr_i, ms_i, lms_i, _ = escena_en(cx_i)
+        ts = int(round(t_real * 1000)) + 1000
+        tr.detector.escenas[ts] = (lms_i, ms_i)
+        t0 = _time.perf_counter()
+        _, inf_i = tr.procesar_frame(fr_i, timestamp_ms=ts)
+        esperas.append(_time.perf_counter() - t0)
+        if i >= 8:  # después de la primera detección y del arranque del filtro
+            if inf_i is None:
+                sin_resultado += 1
+            else:
+                errores.append(abs(float(inf_i["p_neck_base"][0]) - cx_i))
+        _time.sleep(0.020)  # dibujar la prenda (mientras tanto, MediaPipe trabaja en el otro hilo)
+    llamadas_21 = tr.detector.llamadas
+    tr.cerrar()
+    assert not tr._hilo.is_alive(), "El hilo de MediaPipe no se cerró"
+    assert sin_resultado == 0, f"{sin_resultado} cuadros sin prenda mientras MediaPipe trabajaba"
+    # Si el probador esperara a MediaPipe, muchos cuadros tardarían 60 ms o más (una pausa
+    # aislada de Windows puede pasar igual)
+    lentos = sum(e >= 0.055 for e in esperas)
+    assert np.median(esperas) < 0.020, f"Cada cuadro tarda {np.median(esperas) * 1000:.0f} ms: parece esperar a MediaPipe"
+    assert lentos <= 2, f"{lentos} cuadros esperaron a MediaPipe (60 ms)"
+    assert llamadas_21 < n_cuadros, "MediaPipe debería correr menos veces que los cuadros"
+    # Detectando en todos los cuadros, el suavizado ya deja la prenda ~3 px atrás a esta velocidad;
+    # con tiempos reales hay picos por la carga de la compu (hasta 1,5 cuadros de movimiento)
+    assert np.mean(errores) < 5.0, f"La prenda quedó en promedio {np.mean(errores):.1f} px atrás de la persona"
+    assert max(errores) < 12.0, f"La prenda quedó {max(errores):.1f} px atrás de la persona"
+    print(f"  {n_cuadros} cuadros, {llamadas_21} detecciones | tiempo típico por cuadro {np.median(esperas) * 1000:.0f} ms"
+          f" | distancia prenda-persona media {np.mean(errores):.1f} px, máx {max(errores):.1f} px")
+    print("  [OK] Prueba 21 superada: MediaPipe trabaja en paralelo sin que la prenda se atrase.")
+
     print("\n" + "=" * 65)
-    print("   [OK] TODAS LAS 20 PRUEBAS DEL SISTEMA FUERON SUPERADAS CON EXITO")
+    print("   [OK] TODAS LAS 21 PRUEBAS DEL SISTEMA FUERON SUPERADAS CON EXITO")
     print("=" * 65)
 
 if __name__ == "__main__":

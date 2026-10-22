@@ -60,19 +60,22 @@ def _mascara_torso_sin_brazos(mascara_roi, info, xmin, ymin, alto, ancho, frame_
     return (cuerpo > 0) & ~quitar
 
 
-def _bordes_desde_centro(fila_bool, centro):
-    """Primer píxel 'falso' a cada lado del centro. Devuelve (izq, der) o None."""
-    n = len(fila_bool)
-    c = int(round(centro))
-    if c <= 0 or c >= n - 1 or not fila_bool[c]:
-        return None
-    izq_trozo = fila_bool[:c][::-1]
-    der_trozo = fila_bool[c:]
-    fuera_izq = np.argmin(izq_trozo) if not izq_trozo.all() else None
-    fuera_der = np.argmin(der_trozo) if not der_trozo.all() else None
-    if fuera_izq is None or fuera_der is None:
-        return None  # el cuerpo toca el borde de la zona: no se puede medir
-    return float(c - fuera_izq), float(c + fuera_der - 1)
+def _bordes_desde_centro(filas_bool, centros):
+    """
+    Para cada fila: el primer píxel 'falso' a cada lado de su centro.
+    Procesa todas las filas juntas (mucho más rápido que fila por fila).
+    Devuelve (izq, der, ok); ok es False donde no se pudo medir.
+    """
+    n_filas, n = filas_bool.shape
+    c = np.round(centros).astype(np.int64)
+    ok = (c > 0) & (c < n - 1)
+    ok &= filas_bool[np.arange(n_filas), np.clip(c, 0, n - 1)]
+    cols = np.arange(n)[None, :]
+    fuera = ~filas_bool
+    falso_izq = np.where(fuera & (cols < c[:, None]), cols, -1).max(axis=1)
+    falso_der = np.where(fuera & (cols >= c[:, None]), cols, n).min(axis=1)
+    ok &= (falso_izq >= 0) & (falso_der < n)  # si el cuerpo toca el borde de la zona, no se puede medir
+    return (falso_izq + 1).astype(np.float32), (falso_der - 1).astype(np.float32), ok
 
 
 def _suavizar(valores, validos, ventana):
@@ -135,22 +138,12 @@ def ajustar_prenda_a_silueta(parche_rgba, xmin, ymin, mascara, info, holgura=1.0
         return parche_rgba
 
     n = len(filas)
-    tela_izq = np.zeros(n, np.float32); tela_der = np.zeros(n, np.float32)
-    cuerpo_izq = np.zeros(n, np.float32); cuerpo_der = np.zeros(n, np.float32)
-    centros = np.zeros(n, np.float32)
-    ok_tela = np.zeros(n, bool); ok_cuerpo = np.zeros(n, bool)
-
-    for i, y in enumerate(filas):
-        c = p_neck[0] + (y - p_neck[1]) * pendiente
-        centros[i] = c
-        b_tela = _bordes_desde_centro(tela[y], c)
-        if b_tela is not None:
-            tela_izq[i], tela_der[i] = b_tela
-            ok_tela[i] = True
-        b_cuerpo = _bordes_desde_centro(torso[y], c)
-        if b_cuerpo is not None:
-            cuerpo_izq[i], cuerpo_der[i] = b_cuerpo
-            ok_cuerpo[i] = True
+    centros_exactos = p_neck[0] + (filas - p_neck[1]) * pendiente
+    centros = centros_exactos.astype(np.float32)
+    tela_izq, tela_der, ok_tela = _bordes_desde_centro(tela[filas], centros_exactos)
+    cuerpo_izq, cuerpo_der, ok_cuerpo = _bordes_desde_centro(torso[filas], centros_exactos)
+    tela_izq[~ok_tela] = 0; tela_der[~ok_tela] = 0
+    cuerpo_izq[~ok_cuerpo] = 0; cuerpo_der[~ok_cuerpo] = 0
 
     # Sólo filas donde hay tela Y cuerpo, con anchos razonables (evita errores de la silueta)
     ancho_tela = tela_der - tela_izq
@@ -201,22 +194,21 @@ def ajustar_prenda_a_silueta(parche_rgba, xmin, ymin, mascara, info, holgura=1.0
     # Construir el mapa de píxeles: en cada fila, los bordes de la tela van a los bordes del cuerpo
     map_x = np.tile(np.arange(ancho, dtype=np.float32), (alto, 1))
     map_y = np.repeat(np.arange(alto, dtype=np.float32)[:, None], ancho, axis=1)
-    xs = np.arange(ancho, dtype=np.float32)
-    for i, y in enumerate(filas):
-        if not ok_tela[i] or con_mangas[i]:
-            continue
-        peso = float(np.clip((y - y_inicio) / max(1, y_rampa), 0.0, 1.0))
-        gl, gr = tela_izq[i], tela_der[i]
-        tl = gl + (objetivo_izq[i] - gl) * peso
-        tr = gr + (objetivo_der[i] - gr) * peso
-        if tr - tl < 4:
-            continue
-        a = min(gl, tl); b = max(gr, tr)
-        tramo = (xs >= a) & (xs <= b)
+    xs = np.arange(ancho, dtype=np.float32)[None, :]
+    # Todas las filas a la vez: cada columna de 'xs' es un píxel, cada fila una fila de la prenda
+    peso = np.clip((filas - y_inicio) / max(1, y_rampa), 0.0, 1.0)
+    gl, gr = tela_izq, tela_der
+    tl = gl + (objetivo_izq - gl) * peso
+    tr = gr + (objetivo_der - gr) * peso
+    usar = ok_tela & ~con_mangas & (tr - tl >= 4)
+    if usar.any():
+        gl, gr, tl, tr = (v[usar][:, None] for v in (gl, gr, tl, tr))
+        tramo = (xs >= np.minimum(gl, tl)) & (xs <= np.maximum(gr, tr))
         dentro = (xs >= tl) & (xs <= tr)
-        fila = map_x[y]
-        fila[tramo & dentro] = gl + (xs[tramo & dentro] - tl) * (gr - gl) / (tr - tl)
-        fila[tramo & ~dentro] = -1.0  # donde la tela sobraba, queda vacío
+        estirada = gl + (xs - tl) * (gr - gl) / (tr - tl)
+        y_usar = filas[usar]
+        map_x[y_usar] = np.where(tramo & dentro, estirada,
+                                 np.where(tramo, -1.0, map_x[y_usar]))  # donde la tela sobraba, queda vacío
 
     return cv2.remap(parche_rgba, map_x, map_y, interpolation=cv2.INTER_LINEAR,
                      borderMode=cv2.BORDER_CONSTANT, borderValue=(0, 0, 0, 0))
@@ -273,15 +265,11 @@ def ajustar_hombros(parche_rgba, xmin, ymin, mascara, info, holgura=1.05):
         cols = cols[(cols >= 0) & (cols < ancho)]
         if len(cols) < 6:
             continue
-        top_tela = np.full(len(cols), np.nan, np.float32)
-        top_cuerpo = np.full(len(cols), np.nan, np.float32)
-        for i, x in enumerate(cols):
-            col_t = tela[y_busqueda0:y_ancla, x]
-            col_c = cuerpo[y_busqueda0:y_ancla, x]
-            if col_t.any():
-                top_tela[i] = y_busqueda0 + np.argmax(col_t)
-            if col_c.any():
-                top_cuerpo[i] = y_busqueda0 + np.argmax(col_c)
+        # Primera fila con tela y con cuerpo en cada columna (todas las columnas juntas)
+        zona_t = tela[y_busqueda0:y_ancla][:, cols]
+        zona_c = cuerpo[y_busqueda0:y_ancla][:, cols]
+        top_tela = np.where(zona_t.any(axis=0), y_busqueda0 + np.argmax(zona_t, axis=0), np.nan).astype(np.float32)
+        top_cuerpo = np.where(zona_c.any(axis=0), y_busqueda0 + np.argmax(zona_c, axis=0), np.nan).astype(np.float32)
         ok = ~np.isnan(top_tela) & ~np.isnan(top_cuerpo)
         if ok.sum() < len(cols) * 0.4:
             continue
@@ -294,14 +282,13 @@ def ajustar_hombros(parche_rgba, xmin, ymin, mascara, info, holgura=1.05):
         rampa = max(3, len(cols) // 6)
         peso = np.minimum(1.0, np.minimum(idx + 1, len(cols) - idx) / float(rampa))
         objetivo = tt + (objetivo - tt) * peso
-        for i, x in enumerate(cols):
-            yo, yn = tt[i], objetivo[i]
-            if abs(yo - yn) < 0.5 or y_ancla - yn < 4:
-                continue
-            ys = np.arange(0, y_ancla, dtype=np.float32)
-            col = map_y[:y_ancla, x]
+        mover = (np.abs(tt - objetivo) >= 0.5) & (y_ancla - objetivo >= 4)
+        if mover.any():
+            yo, yn = tt[mover][None, :], objetivo[mover][None, :]
+            ys = np.arange(0, y_ancla, dtype=np.float32)[:, None]
             # filas entre la nueva línea y el ancla se estiran desde la línea original
-            col[:] = np.where(ys >= yn, yo + (ys - yn) * (y_ancla - yo) / max(1.0, (y_ancla - yn)), -1.0)
+            map_y[:y_ancla, cols[mover]] = np.where(
+                ys >= yn, yo + (ys - yn) * (y_ancla - yo) / np.maximum(1.0, (y_ancla - yn)), -1.0)
             cambio = True
     if not cambio:
         return parche_rgba
@@ -341,20 +328,21 @@ def ajustar_mangas(parche_rgba, xmin, ymin, mascara, info, holgura=1.05):
         if y1 - y0 < 6:
             continue
         filas = np.arange(y0, y1)
-        borde_tela = np.full(len(filas), np.nan, np.float32)
-        borde_cuerpo = np.full(len(filas), np.nan, np.float32)
-        for i, y in enumerate(filas):
-            xt = np.where(tela[y])[0]
-            if len(xt) == 0:
-                continue
-            bt = float(xt.min() if lado < 0 else xt.max())
-            a, b = int(max(0, bt - ventana)), int(min(ancho, bt + ventana + 1))
-            xc = np.where(cuerpo[y, a:b])[0]
-            if len(xc) == 0:
-                continue
-            borde_tela[i] = bt
-            borde_cuerpo[i] = a + float(xc.min() if lado < 0 else xc.max())
-        ok = ~np.isnan(borde_tela)
+        # Borde de afuera de la tela en cada fila, y del cuerpo cerca de ese borde (todas las filas juntas)
+        zona_t, zona_c = tela[filas], cuerpo[filas]
+        cols = np.arange(ancho)[None, :]
+        hay_tela = zona_t.any(axis=1)
+        bt_filas = np.argmax(zona_t, axis=1) if lado < 0 else ancho - 1 - np.argmax(zona_t[:, ::-1], axis=1)
+        a = np.maximum(0, bt_filas - ventana)[:, None]
+        b = np.minimum(ancho, bt_filas + ventana + 1)[:, None]
+        en_ventana = zona_c & (cols >= a) & (cols < b)
+        if lado < 0:
+            bc_filas = np.where(en_ventana, cols, ancho).min(axis=1)
+        else:
+            bc_filas = np.where(en_ventana, cols, -1).max(axis=1)
+        ok = hay_tela & en_ventana.any(axis=1)
+        borde_tela = np.where(ok, bt_filas, np.nan).astype(np.float32)
+        borde_cuerpo = np.where(ok, bc_filas, np.nan).astype(np.float32)
         if ok.sum() < len(filas) * 0.5:
             continue
         idx = np.arange(len(filas))
@@ -364,21 +352,22 @@ def ajustar_mangas(parche_rgba, xmin, ymin, mascara, info, holgura=1.05):
         objetivo = _suavizar_simple(bc + lado * holg, max(5, len(filas) // 6))
         peso = np.minimum(1.0, np.minimum(idx + 1, len(filas) - idx) / max(3.0, len(filas) / 5.0))
         objetivo = bt + (objetivo - bt) * peso
-        for i, y in enumerate(filas):
-            if abs(objetivo[i] - bt[i]) < 0.5:
-                continue
+        mover = np.abs(objetivo - bt) >= 0.5
+        if mover.any():
             # Estirar sólo el tramo exterior de la manga (un cuarto del ancho de hombros)
-            interior = bt[i] - lado * d_sh * 0.25
-            nuevo, viejo = objetivo[i], bt[i]
-            fila = map_x[y]
+            nuevo, viejo = objetivo[mover][:, None], bt[mover][:, None]
+            interior = viejo - lado * d_sh * 0.25
+            x2 = xs[None, :]
             if lado < 0:
-                sel = (xs >= min(nuevo, viejo)) & (xs <= interior)
-                fila[sel] = np.where(xs[sel] >= nuevo,
-                                     viejo + (xs[sel] - nuevo) * (interior - viejo) / max(1.0, interior - nuevo), -1.0)
+                sel = (x2 >= np.minimum(nuevo, viejo)) & (x2 <= interior)
+                valor = np.where(x2 >= nuevo,
+                                 viejo + (x2 - nuevo) * (interior - viejo) / np.maximum(1.0, interior - nuevo), -1.0)
             else:
-                sel = (xs <= max(nuevo, viejo)) & (xs >= interior)
-                fila[sel] = np.where(xs[sel] <= nuevo,
-                                     interior + (xs[sel] - interior) * (viejo - interior) / max(1.0, nuevo - interior), -1.0)
+                sel = (x2 <= np.maximum(nuevo, viejo)) & (x2 >= interior)
+                valor = np.where(x2 <= nuevo,
+                                 interior + (x2 - interior) * (viejo - interior) / np.maximum(1.0, nuevo - interior), -1.0)
+            y_mover = filas[mover]
+            map_x[y_mover] = np.where(sel, valor, map_x[y_mover])
             cambio = True
     if not cambio:
         return parche_rgba

@@ -307,3 +307,57 @@ que las 33 funciones, clases y constantes son idénticas a las originales).
 
 - `medir_rendimiento.py` ahora toma la configuración de `config.py` (antes tenía una copia).
 - Se quitaron imports que `main.py` no usaba (`datetime`, `mediapipe`, etc.).
+
+---
+
+# Séptima etapa: el dibujo de la prenda más rápido y MediaPipe en paralelo
+
+## Lo que mostró la cámara
+
+Con la persona frente a la cámara, después de la quinta etapa:
+
+| Etapa | Tiempo |
+| --- | --- |
+| Cámara | 8 ms |
+| MediaPipe + medidas | 33 ms (antes 78) |
+| **Malla + escáner** | **60 ms** |
+| Composición | 20 ms |
+| **Total** | **121 ms (8 FPS)** |
+
+MediaPipe ya había mejorado, pero el dibujo de la prenda pasó a ser lo más lento.
+
+## Más velocidad sin cambiar el resultado
+
+Las imágenes que salen son **idénticas píxel por píxel** a las de antes (se compararon 2430
+casos del escáner y 810 de malla y composición: todas las prendas, figuras, poses y talles).
+
+| Parte | Qué cambió | Tiempo |
+| --- | --- | --- |
+| Escáner (`ajuste_silueta.py`) | Hombros, mangas y torso se calculaban fila por fila (o columna por columna) con bucles de Python; ahora todas las filas a la vez con numpy | 45 → 17 ms |
+| Malla (`clothing_warper.py`) | Se evita armar una tabla de alto × ancho × 2 × 3 para cada píxel | 10 → 9 ms |
+| Composición (`body_layering.py`) | La mezcla de la prenda con la cámara se hace sobre todo el recuadro de una vez; una dilatación de la silueta que se calculaba dos veces ahora se calcula una | 18 → 16 ms |
+
+(Tiempos medidos con la persona sintética al tamaño real del probador.)
+
+## MediaPipe en segundo plano (`pose_tracker.py`)
+
+La notebook tiene 4 núcleos y el probador usaba uno solo. Ahora MediaPipe corre **en otro hilo**:
+
+- El bucle de la cámara le pasa un cuadro a MediaPipe y sigue dibujando la prenda sin esperarlo.
+- Cada cuadro usa la última detección **adelantada hasta "ahora"** con la velocidad del cuerpo
+  (la misma predicción de la quinta etapa), así la demora de MediaPipe no se nota.
+- Las medidas y la vista (frente / espalda / perfil) se actualizan cada vez que llega una detección.
+- Se activa con `MEDIAPIPE_EN_SEGUNDO_PLANO = True` en `config.py`. Con `False` vuelve al modo
+  de un paso por vez (1 de cada `CADA_N_CUADROS_MEDIAPIPE` cuadros).
+
+## Prueba nueva
+
+| Prueba | Qué verifica |
+| --- | --- |
+| 21 | Con un MediaPipe simulado que tarda 60 ms y una persona que camina en tiempo real: el probador no espera a MediaPipe (≈4 ms por cuadro), ningún cuadro queda sin prenda y la prenda queda a ~3 px de la persona (lo mismo que detectando en todos los cuadros) |
+
+## Límites
+
+- MediaPipe y el dibujo de la prenda comparten el procesador: cuánto se gana depende de la
+  notebook. Para saberlo: `python medir_rendimiento.py` frente a la cámara.
+- La prueba 21 usa tiempos reales: en una compu muy cargada podría fallar de vez en cuando.

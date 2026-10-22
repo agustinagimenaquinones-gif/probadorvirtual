@@ -15,7 +15,8 @@ from clothing_warper import deformar_malla_prenda
 from body_layering import componer_prenda_con_capas
 from catalogo import cargar_catalogo_completo, holgura_de_talle
 from ajuste_silueta import ajustar_prenda_completa
-from config import ANCHO_PROCESO, ANCHO_MEDIAPIPE, CADA_N_CUADROS_MEDIAPIPE  # los mismos que usa el probador
+from config import (ANCHO_PROCESO, ANCHO_MEDIAPIPE, CADA_N_CUADROS_MEDIAPIPE,  # los mismos que usa el probador
+                    MEDIAPIPE_EN_SEGUNDO_PLANO)
 
 
 def main():
@@ -26,7 +27,8 @@ def main():
     print("Cargando catálogo y modelo...")
     catalogo = cargar_catalogo_completo()
     prenda = catalogo[0]
-    tracker = PoseTracker(ancho_mediapipe=ANCHO_MEDIAPIPE, cada_n_cuadros=CADA_N_CUADROS_MEDIAPIPE)
+    tracker = PoseTracker(ancho_mediapipe=ANCHO_MEDIAPIPE, cada_n_cuadros=CADA_N_CUADROS_MEDIAPIPE,
+                          en_segundo_plano=MEDIAPIPE_EN_SEGUNDO_PLANO)
     cap = cv2.VideoCapture(0)
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
@@ -73,8 +75,9 @@ def main():
     cap.release()
     tracker.cerrar()
     print("\n========== RESULTADO ==========")
+    modo = "en segundo plano" if MEDIAPIPE_EN_SEGUNDO_PLANO else f"1 de cada {CADA_N_CUADROS_MEDIAPIPE} cuadros"
     print(f"Resolución de proceso: {frame.shape[1]}x{frame.shape[0]} | MediaPipe a {ANCHO_MEDIAPIPE} px, "
-          f"1 de cada {CADA_N_CUADROS_MEDIAPIPE} cuadros | persona detectada en {detectados} cuadros")
+          f"{modo} | persona detectada en {detectados} cuadros")
     total = 0.0
     for etapa, valores in tiempos.items():
         ms = float(np.mean(valores)) * 1000 if valores else 0.0

@@ -21,6 +21,7 @@ from config import (
     ANCHO_PANTALLA,
     ANCHO_MEDIAPIPE,
     CADA_N_CUADROS_MEDIAPIPE,
+    MEDIAPIPE_EN_SEGUNDO_PLANO,
     MODEL_FILENAME,
     FACTOR_ANCHO_DEFAULT,
     FACTOR_AJUSTE_PASO,
@@ -207,7 +208,8 @@ def ejecutar_probador_camara(prenda_inicial, catalogo, talle_elegido="M"):
 
     # Inicializar rastreador inteligente con MediaPipe y suavizado EMA
     tracker = PoseTracker(model_path=MODEL_FILENAME, alpha_suavizado=SMOOTH_DETECTADO,
-                          ancho_mediapipe=ANCHO_MEDIAPIPE, cada_n_cuadros=CADA_N_CUADROS_MEDIAPIPE)
+                          ancho_mediapipe=ANCHO_MEDIAPIPE, cada_n_cuadros=CADA_N_CUADROS_MEDIAPIPE,
+                          en_segundo_plano=MEDIAPIPE_EN_SEGUNDO_PLANO)
 
     # Abrir cámara web
     cap = cv2.VideoCapture(0)
