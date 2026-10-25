@@ -133,21 +133,21 @@ def recortar_prenda_a_silueta(parche_rgba, xmin, ymin, mascara, info_anatomica, 
     return resultado
 
 
-def aplicar_sombras_del_cuerpo(frame_bgr, parche_rgba, xmin, ymin, intensidad=INTENSIDAD_SOMBRAS):
+def aplicar_sombras_del_cuerpo(frame_bgr, parche_rgba, xmin, ymin, intensidad=INTENSIDAD_SOMBRAS, solo_factor=False):
     """
     Pasa las luces y sombras del cuerpo (pliegues, volumen) a la prenda: toma la
     luminosidad de la zona del cuerpo bajo la prenda, la suaviza y la multiplica
     suavemente sobre el color de la tela.
     """
     if parche_rgba is None or intensidad <= 0:
-        return parche_rgba
+        return None if solo_factor else parche_rgba
     alto_p, ancho_p = parche_rgba.shape[:2]
     zona = frame_bgr[ymin:ymin + alto_p, xmin:xmin + ancho_p]
     if zona.shape[:2] != (alto_p, ancho_p):
-        return parche_rgba
+        return None if solo_factor else parche_rgba
     tela = parche_rgba[:, :, 3] > 20
     if np.count_nonzero(tela) < 50:
-        return parche_rgba
+        return None if solo_factor else parche_rgba
 
     # Desenfoque amplio: pasan los pliegues y el volumen, no los estampados de la ropa
     # de la persona. Se calcula en una imagen 4 veces más chica (es mucho más rápido).
@@ -158,6 +158,8 @@ def aplicar_sombras_del_cuerpo(frame_bgr, parche_rgba, xmin, ymin, intensidad=IN
     luz = cv2.resize(chica, (ancho_p, alto_p), interpolation=cv2.INTER_LINEAR)
     media = float(cv2.mean(luz, mask=tela.astype(np.uint8))[0]) + 1e-3
     factor = 1.0 + (np.clip(luz / media, 0.60, 1.30) - 1.0) * intensidad
+    if solo_factor:
+        return factor
 
     resultado = parche_rgba.copy()
     resultado[:, :, :3] = cv2.multiply(np.ascontiguousarray(parche_rgba[:, :, :3]),
@@ -165,7 +167,7 @@ def aplicar_sombras_del_cuerpo(frame_bgr, parche_rgba, xmin, ymin, intensidad=IN
     return resultado
 
 
-def armonizar_con_la_escena(frame_bgr, parche_rgba, gamma=GAMMA_PRENDA, tono=TONO_ESCENA):
+def armonizar_con_la_escena(frame_bgr, parche_rgba, gamma=GAMMA_PRENDA, tono=TONO_ESCENA, solo_factor=False):
     """
     Adapta los colores de la prenda a la luz de la cámara: levanta las sombras de la
     tela (curva gamma sobre la luminosidad, así el color no pierde saturación) y le da
@@ -185,25 +187,29 @@ def armonizar_con_la_escena(frame_bgr, parche_rgba, gamma=GAMMA_PRENDA, tono=TON
     aclarado = 255.0 * np.power(niveles / 255.0, gamma) / np.maximum(niveles, 1.0)
     bgr = np.ascontiguousarray(parche_rgba[:, :, :3])
     factor = aclarado[cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY)]
+    if solo_factor:
+        return factor, ganancias
     resultado = parche_rgba.copy()
     resultado[:, :, :3] = cv2.multiply(bgr, cv2.merge([factor * float(g) for g in ganancias]), dtype=cv2.CV_8U)
     return resultado
 
 
-def sombreado_volumen(parche_rgba, dist_sh, intensidad=INTENSIDAD_VOLUMEN):
+def sombreado_volumen(parche_rgba, dist_sh, intensidad=INTENSIDAD_VOLUMEN, solo_factor=False):
     """
     Efecto 3D: el cuerpo es redondeado, así que la tela recibe menos luz hacia los
     costados. Oscurece suavemente la prenda cerca de su borde (según la distancia al
     contorno) y la deja igual en el centro del torso.
     """
     if parche_rgba is None or intensidad <= 0:
-        return parche_rgba
+        return None if solo_factor else parche_rgba
     tela = (parche_rgba[:, :, 3] > 128).astype(np.uint8)
     if not tela.any():
-        return parche_rgba
+        return None if solo_factor else parche_rgba
     distancia = cv2.distanceTransform(tela, cv2.DIST_L2, 3)
     curva = np.sqrt(np.clip(distancia / max(4.0, dist_sh * 0.20), 0.0, 1.0))
     factor = (1.0 - intensidad) + intensidad * curva
+    if solo_factor:
+        return factor
     resultado = parche_rgba.copy()
     resultado[:, :, :3] = cv2.multiply(np.ascontiguousarray(parche_rgba[:, :, :3]),
                                        cv2.merge([factor, factor, factor]), dtype=cv2.CV_8U)
@@ -239,7 +245,9 @@ def ocultar_detras_del_cuello(parche_alfa, xmin, ymin, info_anatomica):
     de U sobre el cuello: los costados del cuello de la prenda y el escote quedan.
     Modifica parche_alfa en el lugar.
     """
-    p_neck = np.asarray(info_anatomica["p_neck_base"], dtype=np.float32) - np.array([xmin, ymin], np.float32)
+    # Centro real del cuello (si la cabeza está corrida, la U se corre con ella)
+    p_neck = (np.asarray(info_anatomica.get("p_cuello", info_anatomica["p_neck_base"]), dtype=np.float32)
+              - np.array([xmin, ymin], np.float32))
     u_up = np.asarray(info_anatomica["u_up"], dtype=np.float32)
     u_sh = np.asarray(info_anatomica["u_sh"], dtype=np.float32)
     d_sh = float(info_anatomica["dist_sh"])
@@ -285,10 +293,17 @@ def componer_prenda_con_capas(frame_bgr, parche_rgba, xmin, ymin, xmax, ymax, in
     if recortar_silueta and mascara is not None:
         parche_rgba = recortar_prenda_a_silueta(parche_rgba, xmin, ymin, mascara, info_anatomica, talle, frame_bgr)
     if sombras:
-        parche_rgba = armonizar_con_la_escena(frame_bgr, parche_rgba)
-        parche_rgba = aplicar_sombras_del_cuerpo(frame_bgr, parche_rgba, xmin, ymin)
-        if info_anatomica:
-            parche_rgba = sombreado_volumen(parche_rgba, float(info_anatomica.get("dist_sh", 200.0)))
+        # Luz de la escena + sombras del cuerpo + volumen, combinados en UNA sola pasada
+        # sobre la tela (antes eran tres: es lo que más tiempo se llevaba por cuadro)
+        factor, ganancias = armonizar_con_la_escena(frame_bgr, parche_rgba, solo_factor=True)
+        for extra in (aplicar_sombras_del_cuerpo(frame_bgr, parche_rgba, xmin, ymin, solo_factor=True),
+                      sombreado_volumen(parche_rgba, float((info_anatomica or {}).get("dist_sh", 200.0)),
+                                        solo_factor=True) if info_anatomica else None):
+            if extra is not None:
+                factor = factor * extra
+        parche_rgba = parche_rgba.copy()
+        parche_rgba[:, :, :3] = cv2.multiply(np.ascontiguousarray(parche_rgba[:, :, :3]),
+                                             cv2.merge([factor * float(g) for g in ganancias]), dtype=cv2.CV_8U)
 
     # 1. Recorte de la región de interés (ROI)
     roi_fondo = resultado[ymin:ymax, xmin:xmax]
@@ -329,8 +344,9 @@ def componer_prenda_con_capas(frame_bgr, parche_rgba, xmin, ymin, xmax, ymax, in
     if sombras and info_anatomica and np.any(mask_valida):
         sombra_de_contacto(roi_fondo, parche_alfa, float(info_anatomica.get("dist_sh", 200.0)))
     if np.any(mask_valida):
-        alpha_3c = parche_alfa[:, :, np.newaxis]
-        mezcla = (roi_fondo * (1.0 - alpha_3c) + parche_bgr * alpha_3c).astype(np.uint8)
+        # Mezcla ponderada con OpenCV (mucho más rápida que la cuenta en NumPy)
+        alfa32 = np.ascontiguousarray(parche_alfa, dtype=np.float32)
+        mezcla = cv2.blendLinear(np.ascontiguousarray(parche_bgr), roi_fondo, alfa32, 1.0 - alfa32)
         np.copyto(roi_fondo, mezcla, where=mask_valida[:, :, np.newaxis])
 
     # 4. CAPA SUPERIOR: Brazos y Manos al frente (Oclusión realista)

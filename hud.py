@@ -68,12 +68,40 @@ def dibujar_boton_galeria(frame, resaltado=False):
                 cv2.FONT_HERSHEY_SIMPLEX, 0.55, (255, 255, 255), 1, cv2.LINE_AA)
 
 
+def dibujar_diagnostico(frame, info_anatomica, deteccion):
+    """
+    Modo diagnóstico (tecla I): los puntos que entrega MediaPipe (círculo vacío, con su
+    confianza) y los que usa el probador después de corregirlos (círculo lleno), más el
+    eje del torso. Sirve para ver por qué una prenda queda torcida o corrida.
+    """
+    if deteccion:
+        for clave in ("nose", "sh_left", "sh_right", "elb_left", "elb_right", "hip_left", "hip_right"):
+            p = deteccion["p_raw"].get(clave)
+            if p is None:
+                continue
+            v = float(deteccion["vis"].get(clave, 0.0))
+            color = (80, 220, 80) if v >= 0.5 else (60, 60, 230)
+            x, y = int(p[0]), int(p[1])
+            cv2.circle(frame, (x, y), 7, color, 2, cv2.LINE_AA)
+            cv2.putText(frame, f"{clave} {v:.2f}", (x + 9, y - 6), cv2.FONT_HERSHEY_SIMPLEX, 0.38, color, 1, cv2.LINE_AA)
+    if info_anatomica:
+        for clave in ("p_sh_l", "p_sh_r", "p_hip_l", "p_hip_r", "p_neck_base"):
+            p = info_anatomica.get(clave)
+            if p is not None:
+                cv2.circle(frame, (int(p[0]), int(p[1])), 4, (255, 200, 60), -1, cv2.LINE_AA)
+        cuello = info_anatomica["p_neck_base"]
+        cadera = cuello + info_anatomica["u_torso"] * float(info_anatomica["dist_torso"])
+        cv2.line(frame, tuple(np.int32(cuello)), tuple(np.int32(cadera)), (255, 200, 60), 2, cv2.LINE_AA)
+        cv2.line(frame, tuple(np.int32(info_anatomica["p_sh_l"])), tuple(np.int32(info_anatomica["p_sh_r"])),
+                 (255, 200, 60), 2, cv2.LINE_AA)
+
+
 NOMBRES_ORIENTACION = {"frente": "De frente", "girada": "Girada", "perfil": "De perfil", "espalda": "De espaldas"}
 
 
 def dibujar_hud_probador(frame, prenda_info, factor_escala, mensaje_notif="", modo_malla=True,
                          talle="M", figura="", fps=None, recorte=True, orientacion=None,
-                         boton_resaltado=False, color=""):
+                         boton_resaltado=False, color="", aviso_encuadre=""):
     """Dibuja la interfaz visual limpia y elegante requerida sobre la cámara."""
     alto, ancho, _ = frame.shape
 
@@ -112,9 +140,19 @@ def dibujar_hud_probador(frame, prenda_info, factor_escala, mensaje_notif="", mo
     cv2.putText(frame, texto_talle, (ancho - 740, 52), cv2.FONT_HERSHEY_SIMPLEX, 0.46, (200, 235, 200), 1, cv2.LINE_AA)
 
     # Controles inferiores limpios y claros
-    controles = "[G] Galeria | [C] Foto | [1..9 / N] Prenda | [T] Talle | [K] Color | [V] Medidas | [R] Recorte | [M] Modo | [+/-] Calce | [Q] Cerrar camara"
+    controles = "[G] Galeria | [C] Foto | [1..9 / N] Prenda | [T] Talle | [K] Color | [V] Medidas | [I] Diagnostico | [R] Recorte | [M] Modo | [+/-] Calce | [Q] Cerrar camara"
     cv2.putText(frame, controles, (25, alto - 18), cv2.FONT_HERSHEY_SIMPLEX, 0.46, (220, 220, 220), 1, cv2.LINE_AA)
     dibujar_boton_galeria(frame, boton_resaltado)
+
+    # Guía de encuadre: cómo pararse para que la prenda se ajuste bien
+    if aviso_encuadre:
+        (w_txt, h_txt), _ = cv2.getTextSize(aviso_encuadre, cv2.FONT_HERSHEY_SIMPLEX, 0.7, 2)
+        x0 = (ancho - w_txt) // 2 - 18
+        y0 = 82
+        zona = frame[y0:y0 + h_txt + 26, max(0, x0):min(ancho, x0 + w_txt + 36)]
+        zona[:] = (zona.astype(np.float32) * 0.35 + np.array([40, 38, 36], np.float32) * 0.65).astype(np.uint8)
+        cv2.putText(frame, aviso_encuadre, (x0 + 18, y0 + h_txt + 12), cv2.FONT_HERSHEY_SIMPLEX, 0.7,
+                    (90, 210, 255), 2, cv2.LINE_AA)
 
     # Notificación temporal en el centro (por ejemplo al sacar una foto o cambiar prenda/talle)
     if mensaje_notif:

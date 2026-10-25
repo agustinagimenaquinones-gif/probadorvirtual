@@ -92,7 +92,12 @@ def envolver_en_torso(parche_rgba, xmin, ymin, info, arco=ARCO_FRENTE, intensida
     xs = np.arange(c0, c1, dtype=np.float32)[None, :]
     l, r = izq[:, None], der[:, None]
     t = np.clip((xs - l) / np.maximum(1.0, r - l), 0.0, 1.0)   # 0..1 a lo ancho de la tela visible
-    phi = np.arcsin(np.clip(x_min + t * (x_max - x_min), -1.0, 1.0)) - giro  # ángulo de la tela que se ve
+    # El ángulo de la tela depende sólo de t: se calcula una vez en una tabla de 1024
+    # valores y cada píxel la consulta (mucho más rápido que un arcoseno por píxel)
+    tabla_t = np.linspace(0.0, 1.0, 1024, dtype=np.float32)
+    tabla_phi = (np.arcsin(np.clip(x_min + tabla_t * (x_max - x_min), -1.0, 1.0)) - giro).astype(np.float32)
+    indice = (t * 1023.0 + 0.5).astype(np.int32)
+    phi = tabla_phi[indice]                                     # ángulo de la tela que se ve
     origen = l + (phi + a) / (2.0 * a) * (r - l)                # misma tela, en la foto plana
     w = (peso * ok)[:, None]
     dentro = (xs >= l) & (xs <= r)
@@ -106,7 +111,8 @@ def envolver_en_torso(parche_rgba, xmin, ymin, info, arco=ARCO_FRENTE, intensida
         # Luz: proporcional a cuánto mira la tela hacia la fuente de luz
         luz_lateral, luz_vertical = info.get("luz", (0.0, 0.0))
         angulo_luz = math.radians(float(luz_lateral) * GRADOS_LUZ_LATERAL)
-        mirada = np.cos(phi + giro - angulo_luz).clip(0.0, 1.0) ** 0.6
+        tabla_mirada = (np.cos(tabla_phi + giro - angulo_luz).clip(0.0, 1.0) ** 0.6).astype(np.float32)
+        mirada = tabla_mirada[indice]
         altura = ((filas - y_inicio) / max(1.0, float(filas[-1]) - y_inicio))[:, None]  # 0 arriba, 1 abajo
         vertical = 1.0 + INTENSIDAD_LUZ_VERTICAL * float(luz_vertical) * (0.5 - altura)
         factor = np.where(dentro, (1.0 - intensidad_luz * w * (1.0 - mirada)) * (1.0 + (vertical - 1.0) * w),

@@ -3,6 +3,9 @@
 # MÓDULO: PROBADOR CON CÁMARA (bucle en vivo con OpenCV + MediaPipe)
 # ==========================================================
 
+import math
+import os
+import sys
 import time
 import cv2
 import numpy as np
@@ -14,7 +17,7 @@ from clothing_warper import deformar_malla_prenda
 from body_layering import componer_prenda_con_capas
 from catalogo import holgura_de_talle, talle_inicial, obtener_medidas_talle
 from ajuste_silueta import ajustar_prenda_completa
-from hud import dibujar_medidas, dibujar_hud_probador, punto_en_boton_galeria
+from hud import dibujar_medidas, dibujar_hud_probador, punto_en_boton_galeria, dibujar_diagnostico
 from recursos import obtener_siguiente_nombre_captura
 from colores_prenda import CacheColores
 from diseno_rigido import pegar_bloques
@@ -204,6 +207,60 @@ def deformar_y_superponer_prenda(fondo, prenda_rgba, dst_quad):
 # =========================================================================
 # MOTOR DEL PROBADOR CON CÁMARA (OPENCV + MEDIAPIPE)
 # =========================================================================
+def abrir_camara():
+    """
+    Abre la cámara web. En Windows se prueba primero DirectShow: tolera mejor abrir y
+    cerrar la cámara varias veces en la misma sesión (al volver a la galería y elegir
+    otra prenda). Si no anda, se usa el sistema por defecto de OpenCV.
+    """
+    intentos = [cv2.CAP_DSHOW, cv2.CAP_ANY] if sys.platform.startswith("win") else [cv2.CAP_ANY]
+    for sistema in intentos:
+        cap = cv2.VideoCapture(0, sistema)
+        if cap.isOpened():
+            # Se pide la imagen al tamaño en que se procesa (ANCHO_PROCESO): pedirla en
+            # 1280x720 y achicarla después sólo gastaba tiempo en cada cuadro
+            cap.set(cv2.CAP_PROP_FRAME_WIDTH, ANCHO_PROCESO)
+            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, int(round(ANCHO_PROCESO * 3 / 4)))
+            return cap
+        cap.release()
+    return None
+
+
+def leer_primer_cuadro(cap, espera_s=4.0):
+    """La cámara recién abierta puede tardar en entregar imagen: se espera con calma."""
+    limite = time.time() + espera_s
+    while time.time() < limite:
+        ret, frame = cap.read()
+        if ret and frame is not None:
+            return frame
+        time.sleep(0.1)
+    return None
+
+
+ARCHIVO_DIAGNOSTICO = os.path.join("temp", "diagnostico_pose.csv")
+
+
+def registrar_diagnostico(prenda, info, deteccion):
+    """Agrega una línea con los puntos del cuerpo (sólo coordenadas, nunca imágenes)."""
+    os.makedirs("temp", exist_ok=True)
+    nuevo = not os.path.exists(ARCHIVO_DIAGNOSTICO)
+    claves = ("nose", "sh_left", "sh_right", "hip_left", "hip_right")
+    with open(ARCHIVO_DIAGNOSTICO, "a", encoding="utf-8") as archivo:
+        if nuevo:
+            archivo.write("hora,prenda,mangas,orientacion,giro,caderas_visibles,angulo_torso,dist_sh,dist_torso,"
+                          + ",".join(f"{k}_x,{k}_y,{k}_vis" for k in claves) + "\n")
+        u = info["u_torso"]
+        fila = [time.strftime("%H:%M:%S"), prenda["id"], str(prenda.get("tiene_mangas")), info.get("orientacion", ""),
+                f"{info.get('giro', 0):.2f}", str(info.get("caderas_visibles")),
+                f"{math.degrees(math.atan2(float(u[0]), float(u[1]))):.1f}", f"{info['dist_sh']:.0f}",
+                f"{info['dist_torso']:.0f}"]
+        for k in claves:
+            p = deteccion["p_raw"].get(k) if deteccion else None
+            v = deteccion["vis"].get(k, 0.0) if deteccion else 0.0
+            fila += [f"{p[0]:.0f}", f"{p[1]:.0f}", f"{v:.2f}"] if p is not None else ["", "", ""]
+        archivo.write(",".join(fila) + "\n")
+
+
 def colores_prenda(prenda):
     return prenda.get("colores") or [{"nombre": prenda.get("color", ""), "hex": None, "es_foto": True}]
 
@@ -225,15 +282,16 @@ def ejecutar_probador_camara(prenda_inicial, catalogo, talle_elegido="M", color_
                           en_segundo_plano=MEDIAPIPE_EN_SEGUNDO_PLANO)
 
     # Abrir cámara web
-    cap = cv2.VideoCapture(0)
-    if not cap.isOpened():
+    cap = abrir_camara()
+    primer_cuadro = leer_primer_cuadro(cap) if cap is not None else None
+    if primer_cuadro is None:
+        if cap is not None:
+            cap.release()
         print("[ERROR] No se pudo acceder a la cámara web.")
-        messagebox.showerror("Error de Cámara", "No se pudo acceder a la cámara web. Verifica que no esté en uso por otra app.")
+        messagebox.showerror("Error de Cámara", "No se pudo acceder a la cámara web. Puede estar en uso por otra app "
+                                                "(una videollamada u otra copia del probador). Cerrala y volvé a intentar.")
         tracker.cerrar()
         return prenda_inicial, color_elegido
-
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
 
     # Índice de la prenda actual dentro del catálogo
     indice_prenda = 0
@@ -250,6 +308,8 @@ def ejecutar_probador_camara(prenda_inicial, catalogo, talle_elegido="M", color_
     inercia = InerciaTela()  # el ruedo y las mangas se balancean un poco al moverse
     estimador_luz = EstimadorLuz()  # de dónde viene la luz en la cámara
     ver_medidas = False
+    diagnostico = False      # tecla I: puntos del cuerpo y registro para encontrar errores
+    ultimo_registro = 0.0
     opacidad_prenda = 1.0          # baja a 0 suavemente cuando la persona está de perfil
     orientacion_anterior = "frente"
     recorte_silueta = True   # prenda pegada a la silueta: escáner + recorte (tecla R)
@@ -278,17 +338,14 @@ def ejecutar_probador_camara(prenda_inicial, catalogo, talle_elegido="M", color_
     cv2.setMouseCallback(nombre_ventana, al_usar_mouse)
 
     while True:
-        ret, frame = cap.read()
+        if primer_cuadro is not None:
+            ret, frame, primer_cuadro = True, primer_cuadro, None
+        else:
+            ret, frame = cap.read()
         if not ret:
-            # Al volver a abrir la cámara, Windows puede tardar en liberarla de la sesión
-            # anterior: se reintenta unos segundos (reabriéndola) antes de rendirse
-            for _ in range(20):
-                time.sleep(0.15)
-                ret, frame = cap.read()
-                if ret:
-                    break
-                cap.release()
-                cap = cv2.VideoCapture(0)
+            # Un cuadro perdido no corta la sesión: se espera un poco a que vuelva la imagen
+            frame = leer_primer_cuadro(cap, espera_s=2.0)
+            ret = frame is not None
             if not ret:
                 print("[ERROR] No se pudo capturar imagen de la cámara.")
                 messagebox.showerror("Error de Cámara", "La cámara no entrega imagen. Cerrá otras apps que la usen "
@@ -438,6 +495,11 @@ def ejecutar_probador_camara(prenda_inicial, catalogo, talle_elegido="M", color_
             frame_limpio_con_prenda = frame.copy()
             if ver_medidas:
                 dibujar_medidas(frame, info_anatomica)
+            if diagnostico:
+                dibujar_diagnostico(frame, info_anatomica, tracker._ultima_deteccion)
+                if time.time() - ultimo_registro > 0.5:
+                    registrar_diagnostico(prenda_actual, info_anatomica, tracker._ultima_deteccion)
+                    ultimo_registro = time.time()
         else:
             smooth_quad = None
             inercia.reiniciar()
@@ -461,7 +523,15 @@ def ejecutar_probador_camara(prenda_inicial, catalogo, talle_elegido="M", color_
         # 3. Dibujar Interfaz HUD requerida
         figura = info_anatomica.get("figura", "") if info_anatomica else ""
         lista_colores = colores_prenda(prenda_actual)
+        # Guía de encuadre (como en los probadores de tienda: el cuerpo entero a la vista)
+        if info_anatomica is None:
+            aviso_encuadre = "Parate frente a la camara, a unos 2 metros"
+        elif not info_anatomica.get("caderas_visibles", True):
+            aviso_encuadre = "Alejate un poco: que se vea hasta tu cadera"
+        else:
+            aviso_encuadre = ""
         dibujar_hud_probador(frame, prenda_actual, factor_escala, notificacion_texto,
+                             aviso_encuadre=aviso_encuadre,
                              color=lista_colores[indice_color % len(lista_colores)]["nombre"],
                              modo_malla=modo_malla, talle=talle, figura=figura,
                              fps=fps_suave, recorte=recorte_silueta,
@@ -515,6 +585,12 @@ def ejecutar_probador_camara(prenda_inicial, catalogo, talle_elegido="M", color_
         elif key == ord('r') or key == ord('R'):
             recorte_silueta = not recorte_silueta
             notificacion_texto = "Prenda pegada a la silueta" if recorte_silueta else "Recorte desactivado"
+            notificacion_tiempo = time.time()
+
+        # [I] Modo diagnóstico: puntos del cuerpo en pantalla y registro en temp/diagnostico_pose.csv
+        elif key == ord('i') or key == ord('I'):
+            diagnostico = not diagnostico
+            notificacion_texto = "Diagnostico activo" if diagnostico else "Diagnostico apagado"
             notificacion_tiempo = time.time()
 
         # [V] Mostrar / ocultar las medidas de la silueta
@@ -576,6 +652,8 @@ def ejecutar_probador_camara(prenda_inicial, catalogo, talle_elegido="M", color_
     tracker.cerrar()
     cap.release()
     cv2.destroyAllWindows()
+    cv2.waitKey(1)
+    time.sleep(0.3)  # Windows libera la cámara un instante después: así la próxima sesión la encuentra libre
     prenda_final = catalogo[indice_prenda]
     lista_colores = colores_prenda(prenda_final)
     return prenda_final, lista_colores[indice_color % len(lista_colores)]["nombre"]

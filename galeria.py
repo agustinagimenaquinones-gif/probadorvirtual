@@ -4,6 +4,7 @@
 # ==========================================================
 
 import datetime
+import gc
 import math
 
 import cv2
@@ -738,9 +739,20 @@ class BoutiqueVirtualApp:
             return
         self.limpiar_contenedor()
         self.root.withdraw()
-        prenda_final, color_final = ejecutar_probador_camara(
-            self.prenda_seleccionada, self.catalogo, talle_elegido=self.talle_seleccionado.get(),
-            color_elegido=self.color_seleccionado.get())
+        # Los objetos de la galería que quedaron sin uso se borran AHORA, desde la ventana
+        # principal. Si Python los borrara más tarde en el hilo de MediaPipe, ese hilo se
+        # quedaría esperando a la ventana (ocupada con la cámara): la prenda se congelaba
+        # y el programa no se podía cerrar. Durante la cámara, el borrado automático queda
+        # en pausa (lo común se libera igual al dejar de usarse).
+        gc.collect()
+        gc.disable()
+        try:
+            prenda_final, color_final = ejecutar_probador_camara(
+                self.prenda_seleccionada, self.catalogo, talle_elegido=self.talle_seleccionado.get(),
+                color_elegido=self.color_seleccionado.get())
+        finally:
+            gc.enable()
+            gc.collect()
         self.color_seleccionado.set(color_final or "")
         self.root.deiconify()
         self.mostrar_confirmacion(prenda_final or self.prenda_seleccionada)

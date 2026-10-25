@@ -768,8 +768,40 @@ def ejecutar_todas_las_pruebas():
     print(f"  Derecha {derecha[0]:+.2f} | izquierda {izquierda[0]:+.2f} | arriba {arriba[1]:+.2f}")
     print("  [OK] Prueba 24 superada: la prenda se ilumina desde donde viene la luz.")
 
+    # =============================================================
+    # PRUEBA 25: PERSONA CERCA DE LA CÁMARA (LA CADERA "ADIVINADA" NO TUERCE LA PRENDA)
+    # =============================================================
+    print("\n[PRUEBA 25] Persona cerca de la cámara: una cadera mal estimada no gira la prenda...")
+    _, ms_c, _, pts_c = sp.crear_persona_sintetica("rectangulo", ancho=640, alto=480, cx=320, cy=260,
+                                                   ancho_hombros=360, largo_torso=440)
+    tr_c = PoseTracker()
+    tr_c.detector.close()
+    def eje(pts_x, vis_x):
+        inf = tr_c._calcular_geometria_corporal(pts_x, dict(sp.crear_persona_sintetica.ultima_z), vis_x, 640, 480)
+        return inf, math.degrees(math.atan2(float(inf["u_torso"][0]), float(inf["u_torso"][1])))
+    # 1) Cadera fuera de cuadro y corrida 260 px (como la estima MediaPipe): no se usa
+    corridos = dict(pts_c)
+    corridos["hip_left"] = pts_c["hip_left"] + np.float32([260, -60])
+    corridos["hip_right"] = pts_c["hip_right"] + np.float32([260, -60])
+    vis_c = {k: 0.99 for k in pts_c}
+    vis_c["hip_left"] = vis_c["hip_right"] = 0.5
+    inf_fuera, ang_fuera = eje(corridos, vis_c)
+    assert not inf_fuera["caderas_visibles"], "Una cadera fuera de cuadro no debe tomarse como visible"
+    assert abs(ang_fuera) < 1.0, f"Con la cadera fuera de cuadro el torso quedó inclinado {ang_fuera:.1f}°"
+    # 2) Cadera dentro de cuadro pero corrida (detección mala): el torso no pasa del límite anatómico
+    _, _, _, pts_l = sp.crear_persona_sintetica("rectangulo", ancho=640, alto=480, cx=320, cy=150)
+    torcidos = dict(pts_l)
+    torcidos["hip_left"] = pts_l["hip_left"] + np.float32([200, 0])
+    torcidos["hip_right"] = pts_l["hip_right"] + np.float32([200, 0])
+    _, ang_torcido = eje(torcidos, {k: 0.99 for k in pts_l})
+    tr_c.cerrar()
+    assert abs(ang_torcido) <= PoseTracker.INCLINACION_MAXIMA_TORSO + 0.5, \
+        f"El torso quedó inclinado {ang_torcido:.1f}° (límite {PoseTracker.INCLINACION_MAXIMA_TORSO}°)"
+    print(f"  Cadera fuera de cuadro: torso a {ang_fuera:.1f}° | cadera mal detectada: torso a {ang_torcido:.1f}°")
+    print("  [OK] Prueba 25 superada: la prenda no se tuerce aunque la cadera esté mal estimada.")
+
     print("\n" + "=" * 65)
-    print("   [OK] TODAS LAS 24 PRUEBAS DEL SISTEMA FUERON SUPERADAS CON EXITO")
+    print("   [OK] TODAS LAS 25 PRUEBAS DEL SISTEMA FUERON SUPERADAS CON EXITO")
     print("=" * 65)
 
 if __name__ == "__main__":

@@ -105,7 +105,12 @@ class PoseTracker:
         self._cerrando = True
         self._hay_trabajo.set()
         if self._hilo is not None:
-            self._hilo.join(timeout=2.0)
+            self._hilo.join(timeout=3.0)
+            if self._hilo.is_alive():
+                # El hilo sigue dentro de MediaPipe: cerrar el detector ahora lo dejaría
+                # todo esperando para siempre. Se deja así; se libera al terminar el programa.
+                print("[AVISO] MediaPipe no terminó a tiempo; se cierra sin esperarlo.")
+                return
         if self.detector:
             self.detector.close()
 
@@ -115,6 +120,7 @@ class PoseTracker:
         Retorna (landmarks_actuales, info_anatomica).
         """
         alto, ancho, _ = frame_bgr.shape
+        self._frame_actual = frame_bgr
 
         # Garantizar timestamps estrictamente crecientes requeridos por detect_for_video
         if timestamp_ms is None:
@@ -476,17 +482,30 @@ class PoseTracker:
         info_anatomica["medidas"] = medidas
         info_anatomica["figura"] = estimar_figura(medidas)
 
-        # Cuello medido en la silueta: un poco arriba de la base del cuello
+        # Cuello medido en la silueta (ancho, centro real y altura donde nace)
         if mascara is not None and medir:
-            cuello = self._medir_cuello(mascara, info_anatomica)
+            cuello = self._medir_cuello(mascara, info_anatomica, getattr(self, "_frame_actual", None))
             self._cuello_medido = cuello is not None
             if cuello is not None:
                 anterior = getattr(self, "_cuello_suave", None)
-                self._cuello_suave = cuello if anterior is None else anterior * 0.8 + cuello * 0.2
-        if mascara is not None and getattr(self, "_cuello_medido", False):
-            info_anatomica["medio_cuello"] = self._cuello_suave
+                if anterior is None or np.ndim(anterior) == 0:
+                    self._cuello_suave = cuello
+                else:
+                    self._cuello_suave = anterior * 0.8 + cuello * 0.2
+        suave = getattr(self, "_cuello_suave", None)
+        if mascara is not None and getattr(self, "_cuello_medido", False) and suave is not None and np.ndim(suave):
+            medio, corrimiento, inicio = (float(v) for v in suave)
+            info_anatomica["medio_cuello"] = medio
+            info_anatomica["p_cuello"] = (info_anatomica["p_neck_base"]
+                                          + info_anatomica["u_sh"] * corrimiento).astype(np.float32)
+            info_anatomica["base_cuello"] = inicio
         info_anatomica["mascara"] = mascara
         return info_anatomica
+
+    # Confianza mínima de MediaPipe para usar los puntos de cadera
+    CONFIANZA_CADERAS = 0.5
+    # Inclinación máxima del torso respecto de la línea de los hombros (grados)
+    INCLINACION_MAXIMA_TORSO = 20.0
 
     # Umbrales de orientación (relación ancho de hombros / largo del torso)
     RELACION_PERFIL = 0.40   # por debajo: la persona está de perfil (más de ~60°)
@@ -537,28 +556,109 @@ class PoseTracker:
             self._cuadros_candidata = 0
         return self.orientacion
 
-    @staticmethod
-    def _medir_cuello(mascara, info):
-        """Medio ancho del cuello en la silueta (píxeles) o None."""
+    # Medio ancho mínimo del cuello y altura típica donde nace (fracción del ancho de hombros)
+    CUELLO_MINIMO = 0.13
+    BASE_CUELLO_TIPICA = 0.12
+
+    def _medir_cuello(self, mascara, info, frame_bgr=None):
+        """
+        Mide el cuello en la silueta, en varias alturas entre los hombros y el mentón.
+        Devuelve np.array([medio_ancho, corrimiento, base]) en píxeles, o None:
+          medio_ancho: la mitad del ancho del cuello (la parte más angosta, no el mentón
+                       ni los trapecios);
+          corrimiento: cuánto está corrido el centro del cuello respecto del punto medio
+                       entre los hombros, a lo largo de la línea de hombros (cabeza
+                       inclinada o corrida);
+          base:        a qué altura sobre la línea de hombros nace el cuello.
+        Si se pasa la imagen, dentro de la silueta sólo cuenta como cuello lo que tiene
+        color de piel: así el pelo que cae a los costados no lo ensancha.
+        """
         d_sh = float(info["dist_sh"])
-        centro = info["p_neck_base"] + info["u_up"] * (d_sh * 0.16)
+        base = np.asarray(info["p_neck_base"], np.float32)
+        u_sh = np.asarray(info["u_sh"], np.float32)
+        u_up = np.asarray(info["u_up"], np.float32)
         alto, ancho = mascara.shape[:2]
-        lados = []
+        paso = max(1.0, d_sh * 0.012)
+        alturas = np.arange(0.0, d_sh * 0.55, paso, dtype=np.float32)
+        distancias = np.arange(0.0, d_sh * 0.60, 1.0, dtype=np.float32)
+
+        def adentro(zona):
+            """zona: (alturas, distancias, 2) puntos -> True donde hay cuello."""
+            xs = np.round(zona[..., 0]).astype(np.int32)
+            ys = np.round(zona[..., 1]).astype(np.int32)
+            ok = (xs >= 0) & (xs < ancho) & (ys >= 0) & (ys < alto)
+            xs, ys = np.clip(xs, 0, ancho - 1), np.clip(ys, 0, alto - 1)
+            cuerpo = (mascara[ys, xs] > 0.5) & ok
+            return cuerpo, xs, ys
+
+        centros = base[None, :] + alturas[:, None] * u_up[None, :]
+        lados, piel_lados = [], []
         for signo in (-1.0, 1.0):
-            direccion = info["u_sh"] * signo
-            dist = None
-            for t in np.arange(0.0, d_sh * 0.40, 1.5):
-                x, y = (centro + direccion * t).astype(int)
-                if not (0 <= x < ancho and 0 <= y < alto) or mascara[y, x] < 0.5:
-                    dist = t
-                    break
-            if dist is None:
+            zona = centros[:, None, :] + (signo * distancias)[None, :, None] * u_sh[None, None, :]
+            cuerpo, xs, ys = adentro(zona)
+            lados.append((cuerpo, xs, ys))
+        # Color del cuello: se toma como referencia el color del CENTRO del cuello de esta
+        # persona (sirve para cualquier tono de piel) y cuenta como cuello lo que se le
+        # parece. El pelo, una capucha o el fondo tienen otro color.
+        usar_piel = False
+        if frame_bgr is not None and frame_bgr.shape[:2] == (alto, ancho):
+            todos_x = np.concatenate([l[1].ravel() for l in lados])
+            todos_y = np.concatenate([l[2].ravel() for l in lados])
+            x0, x1 = int(todos_x.min()), int(todos_x.max()) + 1
+            y0, y1 = int(todos_y.min()), int(todos_y.max()) + 1
+            lab = cv2.cvtColor(frame_bgr[y0:y1, x0:x1], cv2.COLOR_BGR2LAB).astype(np.float32)
+            cuerpo_c, xs_c, ys_c = lados[0]
+            centro_lab = lab[ys_c[:, 0] - y0, xs_c[:, 0] - x0][cuerpo_c[:, 0]]
+            if len(centro_lab) >= 4:
+                referencia = np.median(centro_lab, axis=0)
+                def parecido(xs, ys):
+                    dif = lab[ys - y0, xs - x0] - referencia
+                    return np.sqrt((dif[..., 0] * 0.5) ** 2 + dif[..., 1] ** 2 + dif[..., 2] ** 2) < 22
+                piel_lados = [parecido(l[1], l[2]) for l in lados]
+                # Sólo si el centro es parejo (si no: bufanda, collar, estampado al cuello)
+                usar_piel = float(np.mean(piel_lados[0][:, 0][cuerpo_c[:, 0]])) > 0.6
+
+        def bordes(con_piel):
+            """Distancia del centro al primer punto fuera del cuello, de cada lado y en cada altura."""
+            medidas = []
+            for k, (cuerpo, _, _) in enumerate(lados):
+                dentro = cuerpo & piel_lados[k] if con_piel else cuerpo
+                fuera = ~dentro
+                fuera[:, -1] = True
+                primero = np.argmax(fuera, axis=1).astype(np.float32)
+                primero[~dentro[:, 0]] = np.nan  # el centro de esa altura no es cuello
+                medidas.append(primero)
+            return medidas
+
+        def cuello_en(izq, der):
+            """(medio ancho, corrimiento, altura donde nace) de la parte más angosta."""
+            anchos = izq + der
+            validas = ~np.isnan(anchos) & (anchos < d_sh * 0.9)
+            if validas.sum() < 4:
                 return None
-            lados.append(dist)
-        medio = 0.5 * (lados[0] + lados[1])
-        if not (d_sh * 0.10 <= medio <= d_sh * 0.32):
-            return None  # el cuello se fundió con hombros o pelo: medida no confiable
-        return float(medio)
+            minimo = float(np.percentile(anchos[validas], 15))
+            es_cuello = validas & (anchos <= minimo * 1.35)
+            if es_cuello.sum() < 3:
+                return None
+            inicio = float(alturas[es_cuello].min())
+            banda = es_cuello & (alturas <= inicio + d_sh * 0.20)
+            return (float(np.median(anchos[banda])) * 0.5,
+                    float(np.median((der[banda] - izq[banda]) * 0.5)), inicio)
+
+        silueta = cuello_en(*bordes(False))
+        resultado = cuello_en(*bordes(True)) if usar_piel else silueta
+        if resultado is None:
+            return None
+        medio, corrimiento, inicio = resultado
+        if usar_piel and (silueta is None or medio < silueta[0] * 0.75):
+            # Pelo o capucha tapan los costados del cuello: lo que se ve de piel es menos
+            # que el cuello real. El ancho no baja de un mínimo razonable y la altura donde
+            # nace el cuello toma un valor típico (la silueta no la muestra).
+            medio = max(medio, d_sh * self.CUELLO_MINIMO)
+            inicio = d_sh * self.BASE_CUELLO_TIPICA
+        if not (d_sh * 0.08 <= medio <= d_sh * 0.32) or abs(corrimiento) > d_sh * 0.25:
+            return None  # medida no confiable (el cuello se fundió con hombros o pelo)
+        return np.array([medio, corrimiento, inicio], dtype=np.float32)
 
     def _calcular_geometria_corporal(self, pts, z_vals, vis, ancho, alto):
         """
@@ -611,9 +711,16 @@ class PoseTracker:
         v_torso = p_hip_mid - p_neck_base
         dist_torso = float(np.linalg.norm(v_torso))
 
-        # Salvaguarda si las caderas no son visibles o están muy cerca
+        # Salvaguarda si las caderas no son visibles o están muy cerca. Cuando la persona
+        # está cerca de la cámara, la cadera queda fuera de cuadro y MediaPipe la
+        # "adivina", a veces muy corrida hacia un costado: sólo se usa si se la ve con
+        # buena confianza y dentro de la imagen.
+        margen_x, margen_y = ancho * 0.05, alto * 0.02
+        caderas_en_cuadro = all(-margen_x <= float(p[0]) <= ancho + margen_x and float(p[1]) <= alto + margen_y
+                                for p in (p_hip_l, p_hip_r))
         caderas_visibles = True
-        if dist_torso < 25.0 or v_torso[1] <= 0 or vis["hip_left"] < 0.25 or vis["hip_right"] < 0.25:
+        if (dist_torso < 25.0 or v_torso[1] <= 0 or not caderas_en_cuadro
+                or vis["hip_left"] < self.CONFIANZA_CADERAS or vis["hip_right"] < self.CONFIANZA_CADERAS):
             caderas_visibles = False
             dist_torso = dist_sh * 1.35
             u_torso = u_down
@@ -622,6 +729,16 @@ class PoseTracker:
             p_hip_r = p_sh_r + u_torso * dist_torso
         else:
             u_torso = v_torso / dist_torso
+            # Límite anatómico: el torso no se inclina más de INCLINACION_MAXIMA_TORSO
+            # respecto de la perpendicular a los hombros. Un punto de cadera mal detectado
+            # giraba toda la prenda en diagonal.
+            angulo = math.atan2(float(u_down[0] * u_torso[1] - u_down[1] * u_torso[0]), float(u_down @ u_torso))
+            limite = math.radians(self.INCLINACION_MAXIMA_TORSO)
+            if abs(angulo) > limite:
+                a = math.copysign(limite, angulo)
+                c, s_ = math.cos(a), math.sin(a)
+                u_torso = np.array([c * u_down[0] - s_ * u_down[1], s_ * u_down[0] + c * u_down[1]], dtype=np.float32)
+                p_hip_mid = p_neck_base + u_torso * dist_torso
 
         # Vectores de brazos/mangas orientados hacia los codos
         # Manga izquierda (pantalla)
@@ -833,8 +950,13 @@ class PoseTracker:
         # Ancho y holguras anatómicas (valores por defecto, sin silueta)
         # El escote abraza el cuello medido (orejas o silueta), con una pequeña holgura
         ancho_cuello = float(np.clip(info.get("medio_cuello", d_sh_real * 0.20) * 1.10,
-                                     d_sh_real * 0.15, d_sh_real * 0.32))
+                                     d_sh_real * 0.12, d_sh_real * 0.32))
         altura_cuello = d_sh_real * 0.20
+        # Centro real del cuello (la cabeza puede estar corrida) y altura donde nace
+        centro_cuello = np.asarray(info.get("p_cuello", p_neck_base), np.float32)
+        if info.get("base_cuello") is not None:
+            altura_cuello = float(np.clip(info["base_cuello"] + d_sh_real * 0.06,
+                                          d_sh_real * 0.14, d_sh_real * 0.26))
         largo_manga = d_sh * 0.52
         ancho_manga = d_sh * 0.26 * holgura / 1.05
         salida_manga = d_sh * 0.08
@@ -882,12 +1004,12 @@ class PoseTracker:
 
         dst_pts = {
             # 1. Cuello y Escote (alineado a la base del cuello de la persona)
-            "collar_top_mid": p_neck_base + u_up * (altura_cuello * 1.10),
-            "collar_top_l": p_neck_base - u_sh * ancho_cuello + u_up * (altura_cuello * 0.90),
-            "collar_top_r": p_neck_base + u_sh * ancho_cuello + u_up * (altura_cuello * 0.90),
-            "collar_tip_l": p_neck_base - u_sh * (ancho_cuello * 0.65) - u_up * (altura_cuello * 0.25),
-            "collar_tip_r": p_neck_base + u_sh * (ancho_cuello * 0.65) - u_up * (altura_cuello * 0.25),
-            "neck_v": p_neck_base + u_torso * (d_torso_real * 0.18) + corrimiento * 0.5,
+            "collar_top_mid": centro_cuello + u_up * (altura_cuello * 1.10),
+            "collar_top_l": centro_cuello - u_sh * ancho_cuello + u_up * (altura_cuello * 0.90),
+            "collar_top_r": centro_cuello + u_sh * ancho_cuello + u_up * (altura_cuello * 0.90),
+            "collar_tip_l": centro_cuello - u_sh * (ancho_cuello * 0.65) - u_up * (altura_cuello * 0.25),
+            "collar_tip_r": centro_cuello + u_sh * (ancho_cuello * 0.65) - u_up * (altura_cuello * 0.25),
+            "neck_v": (p_neck_base + centro_cuello) * 0.5 + u_torso * (d_torso_real * 0.18) + corrimiento * 0.5,
 
             # 2. Hombros (un poco más afuera de la articulación, según el talle)
             # (el punto de MediaPipe es la articulación; la parte de arriba del hombro
@@ -937,7 +1059,7 @@ class PoseTracker:
             self._parte_alta_como_la_prenda(dst_pts, puntos_prenda, u_lat, u_torso, u_up, p_neck_base,
                                             altura_cuello)
         elif puntos_prenda is not None:
-            self._escote_como_la_prenda(dst_pts, puntos_prenda, p_neck_base, u_sh, u_up, u_torso,
+            self._escote_como_la_prenda(dst_pts, puntos_prenda, centro_cuello, u_sh, u_up, u_torso,
                                         ancho_cuello, altura_cuello, d_torso_real)
 
         # Si no tiene mangas (ej. top halter o musculosa), plegar las mangas hacia los hombros

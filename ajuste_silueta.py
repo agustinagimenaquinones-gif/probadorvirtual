@@ -246,6 +246,7 @@ def ajustar_hombros(parche_rgba, xmin, ymin, mascara, info, holgura=1.05):
     sh_l = np.asarray(info["p_sh_l"], np.float32) - off
     sh_r = np.asarray(info["p_sh_r"], np.float32) - off
     medio_cuello = float(info.get("medio_cuello", d_sh * 0.20))
+    centro_x = float(np.asarray(info.get("p_cuello", info["p_neck_base"]), np.float32)[0] - off[0])
 
     y_busqueda0 = int(max(0, neck[1] - d_sh * 0.45))
     y_ancla = int(min(alto - 1, neck[1] + d_torso * 0.30))  # axilas: aquí no se mueve nada
@@ -259,7 +260,7 @@ def ajustar_hombros(parche_rgba, xmin, ymin, mascara, info, holgura=1.05):
     map_y = np.repeat(np.arange(alto, dtype=np.float32)[:, None], ancho, axis=1)
     cambio = False
     for lado, punta in ((-1, sh_l), (1, sh_r)):
-        x_ini = neck[0] + lado * medio_cuello * 1.15
+        x_ini = centro_x + lado * medio_cuello * 1.15
         x_fin = punta[0] + lado * d_sh * 0.18
         cols = np.arange(int(min(x_ini, x_fin)), int(max(x_ini, x_fin)) + 1)
         cols = cols[(cols >= 0) & (cols < ancho)]
