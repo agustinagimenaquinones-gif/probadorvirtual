@@ -91,6 +91,9 @@ class PoseTracker:
         self._ultimo_timestamp_ms = 0
         self._ultima_deteccion = None
         self._velocidad = {}
+        self._velocidad_suave = {}
+        self._mascara_estable = None
+        self._puntos_estables = None
         self._cuadros_desde_deteccion = 0
 
     def reiniciar_medidas(self):
@@ -287,21 +290,117 @@ class PoseTracker:
             else:
                 mascara = mascara_raw
 
+        p_raw = self._estabilizar_puntos(p_raw)
+        mascara = self._estabilizar_mascara(mascara, p_raw)
+
         # Velocidad de cada punto entre esta detección y la anterior (para predecir
         # los cuadros salteados). Si pasó mucho tiempo, no se confía en ella.
         t_sec = float(timestamp_ms) / 1000.0
         anterior = self._ultima_deteccion
         dt_det = t_sec - anterior["t"] if anterior is not None else 0.0
         if anterior is not None and 1e-3 < dt_det < 0.25:
-            self._velocidad = {k: (v - anterior["p_raw"][k]) / dt_det for k, v in p_raw.items()}
+            escala = float(np.linalg.norm(p_raw["sh_left"] - p_raw["sh_right"]))
+            self._velocidad = self._velocidad_sin_ruido(
+                {k: (v - anterior["p_raw"][k]) / dt_det for k, v in p_raw.items()}, escala)
         else:
             self._velocidad = {}
+            self._velocidad_suave = {}
         self._ultima_deteccion = {"t": t_sec, "p_raw": p_raw, "z_raw": z_raw, "vis": vis,
                                   "mascara": mascara, "lms": lms}
         return True
 
+    # Movimiento de un punto entre dos detecciones (fracción del ancho de hombros) a
+    # partir del cual se toma completo; los cambios más chicos son en parte ruido y se
+    # toman sólo en parte (como mínimo PESO_PUNTO_QUIETO).
+    MOVIMIENTO_PUNTO_REAL = 0.04
+    PESO_PUNTO_QUIETO = 0.30
+
+    def _estabilizar_puntos(self, p_raw):
+        """
+        Cada detección de MediaPipe mueve los puntos 1 o 2 px aunque la persona esté
+        quieta. Los cambios de ese tamaño se toman sólo en parte; un movimiento real
+        (más grande) se toma completo, así la prenda no se atrasa.
+        """
+        previos = getattr(self, "_puntos_estables", None)
+        if not previos or any(k not in previos for k in p_raw):
+            self._puntos_estables = {k: v.copy() for k, v in p_raw.items()}
+            return p_raw
+        escala = max(1.0, float(np.linalg.norm(previos["sh_left"] - previos["sh_right"])))
+        umbral = escala * self.MOVIMIENTO_PUNTO_REAL
+        estables = {}
+        for k, v in p_raw.items():
+            cambio = v - previos[k]
+            peso = float(np.clip(np.linalg.norm(cambio) / umbral, self.PESO_PUNTO_QUIETO, 1.0))
+            estables[k] = (previos[k] + cambio * peso).astype(np.float32)
+        self._puntos_estables = estables
+        return estables
+
+    # Peso de la silueta nueva al promediarla con la anterior (persona quieta). Si el
+    # torso o un brazo se movió más que MOVIMIENTO_SILUETA_RAPIDO (fracción del ancho
+    # de hombros), se usa sobre todo la nueva, para que la silueta no quede atrás.
+    PESO_SILUETA_NUEVA = 0.30
+    PESO_SILUETA_NUEVA_RAPIDO = 0.85
+    MOVIMIENTO_SILUETA_RAPIDO = 0.12
+
+    def _estabilizar_mascara(self, nueva, p_raw):
+        """
+        La silueta de MediaPipe cambia un poco en cada detección aunque la persona esté
+        quieta (el borde "hierve" 1 o 2 px). Como la prenda se ajusta y se recorta a esa
+        silueta, sus bordes temblaban. Aquí se promedia cada silueta nueva con la
+        anterior, corrida lo que se movió el torso entre las dos detecciones.
+        """
+        if nueva is None:
+            self._mascara_estable = None
+            return None
+        torso = np.mean([p_raw[k] for k in ("sh_left", "sh_right", "hip_left", "hip_right")], axis=0)
+        previa = getattr(self, "_mascara_estable", None)
+        if previa is None or previa.shape != nueva.shape:
+            self._mascara_estable, self._torso_mascara = nueva, torso
+            return nueva
+        dx, dy = torso - self._torso_mascara
+        movimiento = math.hypot(dx, dy)
+        if movimiento >= 1.5:  # menos que eso es ruido de los puntos: no se corre
+            traslacion = np.float32([[1, 0, dx], [0, 1, dy]])
+            previa = cv2.warpAffine(previa, traslacion, (nueva.shape[1], nueva.shape[0]), flags=cv2.INTER_LINEAR,
+                                    borderMode=cv2.BORDER_CONSTANT, borderValue=0)
+        escala = max(1.0, float(np.linalg.norm(p_raw["sh_left"] - p_raw["sh_right"])))
+        movimiento_brazos = 0.0
+        if self._ultima_deteccion is not None:  # todavía es la detección anterior
+            previos = self._ultima_deteccion["p_raw"]
+            movimiento_brazos = max(float(np.linalg.norm(p_raw[k] - previos[k]))
+                                    for k in ("elb_left", "elb_right", "wri_left", "wri_right"))
+        rapido = max(movimiento, movimiento_brazos) > escala * self.MOVIMIENTO_SILUETA_RAPIDO
+        peso = self.PESO_SILUETA_NUEVA_RAPIDO if rapido else self.PESO_SILUETA_NUEVA
+        estable = cv2.addWeighted(nueva.astype(np.float32), peso, previa.astype(np.float32), 1.0 - peso, 0.0)
+        self._mascara_estable, self._torso_mascara = estable, torso
+        return estable
+
     # Hasta cuánto tiempo hacia adelante se extrapola el movimiento (segundos)
     MAX_PREDICCION_S = 0.15
+    # Velocidades menores que esta fracción del ancho de hombros por segundo se toman
+    # como ruido de MediaPipe (persona quieta) y no se usan para adelantar la prenda;
+    # al doble de este valor ya se usan completas.
+    VELOCIDAD_MINIMA_HOMBROS = 0.30
+    # Peso de la velocidad nueva al promediarla con la anterior
+    PESO_VELOCIDAD_NUEVA = 0.5
+
+    def _velocidad_sin_ruido(self, cruda, escala):
+        """
+        Suaviza la velocidad entre detecciones y descarta la que es puro ruido.
+        Con dos detecciones casi iguales (persona quieta), el temblor normal de los
+        puntos (1 o 2 px) parece una velocidad de 30 a 50 px/s; adelantar la prenda con
+        ella la hacía saltar de un lado a otro en cada cuadro.
+        """
+        anterior = getattr(self, "_velocidad_suave", None) or {}
+        umbral = max(1.0, escala * self.VELOCIDAD_MINIMA_HOMBROS)
+        suave, efectiva = {}, {}
+        for k, v in cruda.items():
+            v_s = v if k not in anterior else anterior[k] + (v - anterior[k]) * self.PESO_VELOCIDAD_NUEVA
+            suave[k] = v_s
+            rapidez = float(np.linalg.norm(v_s))
+            efectiva[k] = v_s * float(np.clip((rapidez - umbral) / umbral, 0.0, 1.0))
+        self._velocidad_suave = suave
+        return efectiva
 
     def _predecir_cuadro(self, ancho, alto, timestamp_ms, fresca=False):
         """
@@ -334,13 +433,19 @@ class PoseTracker:
         self.agregar_medidas(info_anatomica, mascara, medir=fresca)
         return det["lms"], info_anatomica
 
+    # Filtro One Euro de los puntos: corte mínimo (Hz) con la persona quieta (más bajo =
+    # más quieta la prenda) y cuánto sube el corte con la velocidad (para no atrasarse)
+    FILTRO_CORTE_MINIMO = 0.5
+    FILTRO_BETA = 0.04
+
     def _actualizar_con_puntos(self, p_raw, z_raw, vis, ancho, alto, t_sec):
         """Suaviza los puntos con One Euro y calcula la geometría del cuerpo."""
         # Aplicar Filtro One Euro adaptativo (sin lag en movimientos, suave en reposo)
         self.puntos_suavizados = {}
         for k, v in p_raw.items():
             if k not in self.filtros_puntos:
-                self.filtros_puntos[k] = OneEuroFilter(t0=t_sec, x0=v, min_cutoff=1.0, beta=0.04, d_cutoff=1.0)
+                self.filtros_puntos[k] = OneEuroFilter(t0=t_sec, x0=v, min_cutoff=self.FILTRO_CORTE_MINIMO,
+                                                       beta=self.FILTRO_BETA, d_cutoff=1.0)
                 self.puntos_suavizados[k] = v.copy()
             else:
                 self.puntos_suavizados[k] = self.filtros_puntos[k].filter(v, t_sec)
@@ -621,8 +726,70 @@ class PoseTracker:
             "nose": pts["nose"],
         }
 
+    @staticmethod
+    def _parte_alta_como_la_prenda(dst_pts, src, u_lat, u_torso, u_up, p_neck_base, altura_cuello):
+        """
+        Prendas sin mangas (top halter, musculosa): la prenda entera se ubica con UNA
+        sola transformación que respeta su forma (tiras, escote, lazo), en lugar de
+        estirar la parte de arriba hasta los hombros del cuerpo. En horizontal se escala
+        con el ancho del pecho y en vertical con el largo axilas-ruedo; se orienta con el
+        torso. Después el escáner ajusta los costados a la silueta, fila por fila.
+        """
+        claves = ("armpit_l", "armpit_r", "hem_mid")
+        if any(k not in src or k not in dst_pts for k in claves):
+            return
+        a_l, a_r, ruedo = (np.asarray(src[k], np.float32) for k in claves)
+        ancho_src = float(abs(a_r[0] - a_l[0]))
+        y_axilas = float(a_l[1] + a_r[1]) * 0.5
+        largo_src = float(ruedo[1]) - y_axilas
+        axilas_dst = (dst_pts["armpit_l"] + dst_pts["armpit_r"]) * 0.5
+        ancho_dst = float(np.linalg.norm(dst_pts["armpit_r"] - dst_pts["armpit_l"]))
+        largo_dst = float((dst_pts["hem_mid"] - axilas_dst) @ u_torso)
+        if ancho_src < 1.0 or largo_src < 1.0 or largo_dst < 1.0:
+            return
+        escala_x = ancho_dst / ancho_src
+        escala_y = largo_dst / largo_src
+        cx = float(a_l[0] + a_r[0]) * 0.5
+        for k, (x, y) in src.items():
+            if k in dst_pts:
+                dst_pts[k] = (axilas_dst + u_lat * ((float(x) - cx) * escala_x)
+                              + u_torso * ((float(y) - y_axilas) * escala_y)).astype(np.float32)
+
+    @staticmethod
+    def _escote_como_la_prenda(dst_pts, src, p_neck_base, u_sh, u_up, u_torso, ancho_cuello, altura_cuello,
+                               d_torso):
+        """
+        Reubica las puntas del cuello y el fondo del escote respetando la forma de la
+        prenda: el ANCHO se ajusta al cuello medido de la persona (así el cuello de la
+        prenda lo abraza) y la PROFUNDIDAD se escala con la prenda entera (un cuello
+        redondo queda redondo y no se estira en V).
+        """
+        claves = ("shoulder_l", "shoulder_r", "collar_top_l", "collar_top_r", "collar_tip_l", "collar_tip_r", "neck_v")
+        if any(k not in src for k in claves):
+            return
+        p = {k: np.asarray(src[k], dtype=np.float32) for k in claves}
+        ancho_src = abs(float(p["shoulder_r"][0] - p["shoulder_l"][0]))
+        ancho_dst = float(np.linalg.norm(dst_pts["shoulder_r"] - dst_pts["shoulder_l"]))
+        ancho_cuello_src = abs(float(p["collar_top_r"][0] - p["collar_top_l"][0]))
+        if ancho_src < 1.0 or ancho_cuello_src < 1.0:
+            return
+        escala = ancho_dst / ancho_src
+        escala_x = float(np.clip(2.0 * ancho_cuello / ancho_cuello_src, escala * 0.6, escala * 1.6))
+        cx = float(p["collar_top_l"][0] + p["collar_top_r"][0]) * 0.5
+        y_cuello = float(p["collar_top_l"][1] + p["collar_top_r"][1]) * 0.5
+        base_y = altura_cuello * 0.90  # altura de los costados del cuello (sobre la base del cuello)
+
+        def ubicar(k, minimo, maximo):
+            x = (float(p[k][0]) - cx) * escala_x
+            bajada = float(np.clip((float(p[k][1]) - y_cuello) * escala - base_y, minimo, maximo))
+            return (p_neck_base + u_sh * x + u_torso * bajada).astype(np.float32)
+
+        for k in ("collar_tip_l", "collar_tip_r"):
+            dst_pts[k] = ubicar(k, -altura_cuello * 0.6, d_torso * 0.30)
+        dst_pts["neck_v"] = ubicar("neck_v", d_torso * 0.03, d_torso * 0.40)
+
     def calcular_puntos_destino_malla(self, info, tiene_mangas=True, factor_escala=1.0,
-                                      holgura_talle=1.05, calce="regular"):
+                                      holgura_talle=1.05, calce="regular", puntos_prenda=None):
         """
         Calcula los 23 puntos destino de la prenda en el cuadro de la cámara.
 
@@ -635,6 +802,8 @@ class PoseTracker:
         factor_escala: ajuste manual con las teclas + / -.
         holgura_talle: 1.00 (S) ... 1.18 (XL), ver catalogo.HOLGURA_TALLES.
         calce: "entallado", "regular" u "holgado".
+        puntos_prenda: puntos de la foto de la prenda. Si se pasan, el escote copia la
+          forma real de la prenda (redondo, en V, chomba) en lugar de una V fija.
         """
         p_sh_l = info["p_sh_l"]
         p_sh_r = info["p_sh_r"]
@@ -764,6 +933,12 @@ class PoseTracker:
             "hem_mid": nivel(1.06) + corrimiento * 0.6 - u_torso * sube_ruedo,
             "hem_r": nivel(1.05) + lateral(1.0) * medio["ruedo"][1] - u_torso * sube_ruedo,
         }
+        if puntos_prenda is not None and not tiene_mangas:
+            self._parte_alta_como_la_prenda(dst_pts, puntos_prenda, u_lat, u_torso, u_up, p_neck_base,
+                                            altura_cuello)
+        elif puntos_prenda is not None:
+            self._escote_como_la_prenda(dst_pts, puntos_prenda, p_neck_base, u_sh, u_up, u_torso,
+                                        ancho_cuello, altura_cuello, d_torso_real)
 
         # Si no tiene mangas (ej. top halter o musculosa), plegar las mangas hacia los hombros
         if not tiene_mangas:

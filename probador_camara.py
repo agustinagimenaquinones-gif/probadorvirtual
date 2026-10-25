@@ -14,8 +14,13 @@ from clothing_warper import deformar_malla_prenda
 from body_layering import componer_prenda_con_capas
 from catalogo import holgura_de_talle, talle_inicial, obtener_medidas_talle
 from ajuste_silueta import ajustar_prenda_completa
-from hud import dibujar_medidas, dibujar_hud_probador
+from hud import dibujar_medidas, dibujar_hud_probador, punto_en_boton_galeria
 from recursos import obtener_siguiente_nombre_captura
+from colores_prenda import CacheColores
+from diseno_rigido import pegar_bloques
+from profundidad_3d import envolver_en_torso
+from inercia_tela import InerciaTela
+from luz_escena import EstimadorLuz
 from config import (
     ANCHO_PROCESO,
     ANCHO_PANTALLA,
@@ -199,10 +204,18 @@ def deformar_y_superponer_prenda(fondo, prenda_rgba, dst_quad):
 # =========================================================================
 # MOTOR DEL PROBADOR CON CÁMARA (OPENCV + MEDIAPIPE)
 # =========================================================================
-def ejecutar_probador_camara(prenda_inicial, catalogo, talle_elegido="M"):
+def colores_prenda(prenda):
+    return prenda.get("colores") or [{"nombre": prenda.get("color", ""), "hex": None, "es_foto": True}]
+
+
+def ejecutar_probador_camara(prenda_inicial, catalogo, talle_elegido="M", color_elegido=None):
     """
+    color_elegido: nombre del color con que se abre (los colores que no son el de la
+    foto se generan tiñendo la prenda). Con [K] se cambia de color en vivo.
+    Devuelve (prenda, color) con los que terminó la persona, para volver a su detalle.
     Ejecuta el bucle en vivo de la cámara con detección corporal y calce adaptativo.
-    Retorna 'galeria' si el usuario presiona G, o 'salir' si presiona Q.
+    Al cerrar la cámara (G, Q, Esc, el botón "Volver a la galería" o la X de la
+    ventana) se vuelve a la galería para elegir otra prenda.
     """
     print(f"\n[+] Iniciando probador para prenda: {prenda_inicial['nombre']}")
 
@@ -217,7 +230,7 @@ def ejecutar_probador_camara(prenda_inicial, catalogo, talle_elegido="M"):
         print("[ERROR] No se pudo acceder a la cámara web.")
         messagebox.showerror("Error de Cámara", "No se pudo acceder a la cámara web. Verifica que no esté en uso por otra app.")
         tracker.cerrar()
-        return "galeria"
+        return prenda_inicial, color_elegido
 
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
@@ -231,6 +244,11 @@ def ejecutar_probador_camara(prenda_inicial, catalogo, talle_elegido="M"):
 
     factor_escala = FACTOR_ANCHO_DEFAULT
     talle = talle_inicial(catalogo[indice_prenda], talle_elegido)
+    nombres_color = [c["nombre"] for c in colores_prenda(catalogo[indice_prenda])]
+    indice_color = nombres_color.index(color_elegido) if color_elegido in nombres_color else 0
+    cache_colores = CacheColores()
+    inercia = InerciaTela()  # el ruedo y las mangas se balancean un poco al moverse
+    estimador_luz = EstimadorLuz()  # de dónde viene la luz en la cámara
     ver_medidas = False
     opacidad_prenda = 1.0          # baja a 0 suavemente cuando la persona está de perfil
     orientacion_anterior = "frente"
@@ -248,11 +266,34 @@ def ejecutar_probador_camara(prenda_inicial, catalogo, talle_elegido="M"):
     cv2.namedWindow(nombre_ventana, cv2.WINDOW_NORMAL)
     cv2.resizeWindow(nombre_ventana, 1100, 680)
 
+    # Mouse: botón "Volver a la galería" (OpenCV da las coordenadas en píxeles de la
+    # imagen mostrada, aunque la ventana esté agrandada o achicada)
+    raton = {"x": -1, "y": -1, "click": False, "tam": (1, 1)}
+
+    def al_usar_mouse(evento, x, y, _flags, _param):
+        raton["x"], raton["y"] = x, y
+        if evento == cv2.EVENT_LBUTTONUP and punto_en_boton_galeria(x, y, *raton["tam"]):
+            raton["click"] = True
+
+    cv2.setMouseCallback(nombre_ventana, al_usar_mouse)
+
     while True:
         ret, frame = cap.read()
         if not ret:
-            print("[ERROR] No se pudo capturar imagen de la cámara.")
-            break
+            # Al volver a abrir la cámara, Windows puede tardar en liberarla de la sesión
+            # anterior: se reintenta unos segundos (reabriéndola) antes de rendirse
+            for _ in range(20):
+                time.sleep(0.15)
+                ret, frame = cap.read()
+                if ret:
+                    break
+                cap.release()
+                cap = cv2.VideoCapture(0)
+            if not ret:
+                print("[ERROR] No se pudo capturar imagen de la cámara.")
+                messagebox.showerror("Error de Cámara", "La cámara no entrega imagen. Cerrá otras apps que la usen "
+                                                        "y volvé a intentar.")
+                break
 
         # 1. Efecto espejo para interacción natural de probador
         frame = cv2.flip(frame, 1)
@@ -290,8 +331,19 @@ def ejecutar_probador_camara(prenda_inicial, catalogo, talle_elegido="M"):
                 de_espaldas = orientacion == "espalda"
                 imagen_prenda = prenda_actual.get("imagen_espalda_cv") if de_espaldas else None
                 puntos_prenda = prenda_actual.get("src_puntos_espalda") if de_espaldas else None
+                bloques = []
                 if imagen_prenda is None or puntos_prenda is None:
                     imagen_prenda, puntos_prenda = prenda_actual["imagen_cv"], prenda_actual["src_puntos"]
+                    # De frente: se deforma la prenda LISA y el logo / estampado se dibuja
+                    # después, rígido, para que nunca se estire ni se tuerza
+                    bloques = prenda_actual.get("bloques_diseno") or []
+                    if bloques:
+                        imagen_prenda = prenda_actual["imagen_lisa_cv"]
+                # Color elegido: se tiñe la foto (la forma y los puntos de la malla no cambian)
+                lista_colores = colores_prenda(prenda_actual)
+                color_actual = lista_colores[indice_color % len(lista_colores)]
+                if not color_actual.get("es_foto") and color_actual.get("hex"):
+                    imagen_prenda = cache_colores.obtener(prenda_actual["id"], imagen_prenda, color_actual["hex"])
                 # Si ESTE cuadro ya se ve de perfil, empezar a desvanecer enseguida
                 # (sin esperar a que la vista cambie "oficialmente").
                 de_perfil = orientacion == "perfil" or info_anatomica.get("orientacion_cuadro") == "perfil"
@@ -319,8 +371,12 @@ def ejecutar_probador_camara(prenda_inicial, catalogo, talle_elegido="M"):
                     tiene_mangas=tiene_mangas,
                     factor_escala=factor_escala,
                     holgura_talle=holgura_de_talle(talle),
-                    calce=prenda_actual.get("calce", "regular")
+                    calce=prenda_actual.get("calce", "regular"),
+                    puntos_prenda=puntos_prenda
                 )
+                # Inercia: los puntos sueltos (ruedo, cadera, puños) siguen al cuerpo con un resorte
+                dst_pts = inercia.aplicar(dst_pts, time.time(), prenda_actual.get("calce", "regular"),
+                                          float(info_anatomica["dist_torso"]))
 
                 # Deformación anatómica por malla elástica (sub-malla por regiones)
                 parche, xmin, ymin, xmax, ymax = deformar_malla_prenda(
@@ -340,8 +396,16 @@ def ejecutar_probador_camara(prenda_inicial, catalogo, talle_elegido="M"):
                         holgura=holgura_de_talle(talle) * factor_escala,
                         calce=prenda_actual.get("calce", "regular"),
                         memoria=memoria_ajuste,
-                        frame_bgr=frame
+                        frame_bgr=frame,
+                        tiene_mangas=tiene_mangas
                     )
+                if parche is not None and bloques:
+                    parche = pegar_bloques(parche, xmin, ymin, bloques, puntos_prenda, dst_pts, tiene_mangas)
+                # Profundidad 3D: la tela envuelve el torso (y se ve el giro del cuerpo),
+                # iluminada desde donde viene la luz en la cámara
+                if parche is not None:
+                    info_anatomica["luz"] = estimador_luz.estimar(frame, info_anatomica)
+                    parche = envolver_en_torso(parche, xmin, ymin, info_anatomica)
 
                 # Integración visual multicapa (cuello, torso, y brazos al frente)
                 if parche is not None and opacidad_prenda < 0.98:
@@ -353,7 +417,8 @@ def ejecutar_probador_camara(prenda_inicial, catalogo, talle_elegido="M"):
                 if parche is not None and opacidad_prenda > 0.02:
                     frame = componer_prenda_con_capas(
                         frame, parche, xmin, ymin, xmax, ymax, info_anatomica,
-                        talle=talle, recortar_silueta=recorte_silueta, sombras=True
+                        talle=talle, recortar_silueta=recorte_silueta, sombras=True,
+                        cuello_por_delante=tiene_mangas and not de_espaldas
                     )
             else:
                 # =========================================================
@@ -375,6 +440,7 @@ def ejecutar_probador_camara(prenda_inicial, catalogo, talle_elegido="M"):
                 dibujar_medidas(frame, info_anatomica)
         else:
             smooth_quad = None
+            inercia.reiniciar()
 
         # Cuadros por segundo (promedio suave)
         ahora = time.time()
@@ -394,24 +460,31 @@ def ejecutar_probador_camara(prenda_inicial, catalogo, talle_elegido="M"):
 
         # 3. Dibujar Interfaz HUD requerida
         figura = info_anatomica.get("figura", "") if info_anatomica else ""
+        lista_colores = colores_prenda(prenda_actual)
         dibujar_hud_probador(frame, prenda_actual, factor_escala, notificacion_texto,
+                             color=lista_colores[indice_color % len(lista_colores)]["nombre"],
                              modo_malla=modo_malla, talle=talle, figura=figura,
                              fps=fps_suave, recorte=recorte_silueta,
-                             orientacion=info_anatomica.get("orientacion") if info_anatomica else None)
+                             orientacion=info_anatomica.get("orientacion") if info_anatomica else None,
+                             boton_resaltado=punto_en_boton_galeria(raton["x"], raton["y"],
+                                                                    frame.shape[1], frame.shape[0]))
+        raton["tam"] = (frame.shape[1], frame.shape[0])
 
         cv2.imshow(nombre_ventana, frame)
 
         # 4. Manejo interactivo de teclado
         key = cv2.waitKey(1) & 0xFF
 
-        # [G] Volver a la galería sin cerrar el programa
-        if key == ord('g') or key == ord('G'):
+        # [G], el botón "Volver a la galería" o cerrar la ventana con la X:
+        # volver a la galería sin cerrar el programa
+        ventana_cerrada = cv2.getWindowProperty(nombre_ventana, cv2.WND_PROP_VISIBLE) < 1
+        if key == ord('g') or key == ord('G') or raton["click"] or ventana_cerrada:
             accion_salida = "galeria"
             break
 
-        # [Q] Salir de la aplicación
+        # [Q] o [Esc]: cerrar la cámara y volver a la galería para elegir otra prenda
         elif key == ord('q') or key == ord('Q') or key == 27:
-            accion_salida = "salir"
+            accion_salida = "galeria"
             break
 
         # [C] Capturar foto y guardar en capturas/prueba_xxx.png
@@ -429,6 +502,13 @@ def ejecutar_probador_camara(prenda_inicial, catalogo, talle_elegido="M"):
             talle = talles[(pos + 1) % len(talles)]
             m_t = obtener_medidas_talle(prenda_actual, talle)
             notificacion_texto = f"Talle: {talle} (Pecho: {m_t['pecho']}cm · Cintura: {m_t['cintura']}cm)"
+            notificacion_tiempo = time.time()
+
+        # [K] Cambiar de color (entre los disponibles de la prenda)
+        elif key == ord('k') or key == ord('K'):
+            lista_colores = colores_prenda(prenda_actual)
+            indice_color = (indice_color + 1) % len(lista_colores)
+            notificacion_texto = f"Color: {lista_colores[indice_color]['nombre']}"
             notificacion_tiempo = time.time()
 
         # [R] Activar / desactivar el recorte de la prenda al borde del cuerpo
@@ -458,6 +538,8 @@ def ejecutar_probador_camara(prenda_inicial, catalogo, talle_elegido="M"):
             notificacion_tiempo = time.time()
             tracker.reiniciar()
             talle = talle_inicial(catalogo[indice_prenda], talle)
+            indice_color = 0
+            inercia.reiniciar()
             smooth_quad = None
 
         # [P] o [A] Prenda anterior
@@ -467,6 +549,8 @@ def ejecutar_probador_camara(prenda_inicial, catalogo, talle_elegido="M"):
             notificacion_tiempo = time.time()
             tracker.reiniciar()
             talle = talle_inicial(catalogo[indice_prenda], talle)
+            indice_color = 0
+            inercia.reiniciar()
             smooth_quad = None
 
         # Selección directa con teclas numéricas 1 a 9
@@ -478,6 +562,8 @@ def ejecutar_probador_camara(prenda_inicial, catalogo, talle_elegido="M"):
                 notificacion_tiempo = time.time()
                 tracker.reiniciar()
                 talle = talle_inicial(catalogo[indice_prenda], talle)
+                indice_color = 0
+                inercia.reiniciar()
                 smooth_quad = None
 
         # Ajuste fino de holgura (+ y -)
@@ -490,4 +576,6 @@ def ejecutar_probador_camara(prenda_inicial, catalogo, talle_elegido="M"):
     tracker.cerrar()
     cap.release()
     cv2.destroyAllWindows()
-    return accion_salida
+    prenda_final = catalogo[indice_prenda]
+    lista_colores = colores_prenda(prenda_final)
+    return prenda_final, lista_colores[indice_color % len(lista_colores)]["nombre"]

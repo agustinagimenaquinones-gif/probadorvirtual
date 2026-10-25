@@ -76,7 +76,7 @@ def generar_espalda_automatica(img_rgba):
 def cargar_espalda(ruta_frente, img_frente_procesada, preparar):
     """
     Devuelve (imagen_espalda, es_automatica).
-    preparar: función que recorta y agrega margen (la misma que se usa para el frente).
+    preparar: función que limpia, recorta y agrega margen (la misma que se usa para el frente).
     """
     ruta = ruta_espalda(ruta_frente)
     if os.path.exists(ruta):

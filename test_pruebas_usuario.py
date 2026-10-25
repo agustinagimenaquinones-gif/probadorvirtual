@@ -678,8 +678,98 @@ def ejecutar_todas_las_pruebas():
           f" | distancia prenda-persona media {np.mean(errores):.1f} px, máx {max(errores):.1f} px")
     print("  [OK] Prueba 21 superada: MediaPipe trabaja en paralelo sin que la prenda se atrase.")
 
+    # =============================================================
+    # PRUEBA 22: PERSONA QUIETA CON DETECCIONES RUIDOSAS (LA PRENDA NO TIEMBLA)
+    # =============================================================
+    print("\n[PRUEBA 22] Persona quieta y MediaPipe con ruido: la prenda no debe temblar...")
+    rng = np.random.default_rng(3)
+
+    def con_ruido(lms_q, mascara_q):
+        """Puntos con ±1,5 px de ruido y borde de la silueta que 'hierve' (como MediaPipe)."""
+        ruidosos = [type("LM", (), {"x": lm.x + rng.normal(0, 1.5) / 640, "y": lm.y + rng.normal(0, 1.5) / 360,
+                                    "z": lm.z, "visibility": lm.visibility})() for lm in lms_q]
+        corrimiento = cv2.resize(rng.normal(0, 1.3, (6, 8)).astype(np.float32), (640, 360))
+        mx, my = np.meshgrid(np.arange(640, dtype=np.float32), np.arange(360, dtype=np.float32))
+        m = cv2.remap(mascara_q, mx + corrimiento, my, cv2.INTER_LINEAR)
+        return type("R", (), {"pose_landmarks": [ruidosos], "segmentation_masks": [_Mascara(m)]})()
+
+    _, ms_q, lms_q, _ = sp.crear_persona_sintetica("rectangulo", ancho=640, alto=360, cx=320, cy=90,
+                                                   ancho_hombros=110, largo_torso=140)
+    tr = PoseTracker()
+    tr.detector.close()
+    cuellos_q, bordes_q = [], []
+    for i in range(45):
+        ts = 1000 + 33 * i
+        tr._ultimo_timestamp_ms = ts
+        fresca = i % 2 == 0  # una detección cada 2 cuadros, como en segundo plano
+        if fresca:
+            tr._leer_resultado(con_ruido(lms_q, ms_q), 640, 360, ts - 33)
+        _, inf_q = tr._predecir_cuadro(640, 360, ts, fresca=fresca)
+        if i >= 8:
+            cuellos_q.append(inf_q["p_neck_base"].copy())
+            fila = (inf_q["mascara"][200] > 0.5).nonzero()[0]
+            bordes_q.append(fila.min())
+    tr.cerrar()
+    movimiento_q = float(np.mean(np.linalg.norm(np.diff(np.array(cuellos_q), axis=0), axis=1)))
+    temblor_borde = float(np.std(bordes_q))
+    assert movimiento_q < 0.35, f"Con la persona quieta, el cuello de la prenda se mueve {movimiento_q:.2f} px por cuadro"
+    assert temblor_borde < 1.0, f"Con la persona quieta, el borde de la silueta tiembla {temblor_borde:.2f} px"
+    print(f"  Cuello: {movimiento_q:.2f} px por cuadro | borde de la silueta: desvío {temblor_borde:.2f} px")
+    print("  [OK] Prueba 22 superada: con la persona quieta, la prenda se queda quieta.")
+
+    # =============================================================
+    # PRUEBA 23: INERCIA DE LA TELA (EL RUEDO SE BALANCEA, EL CUELLO NO SE ATRASA)
+    # =============================================================
+    print("\n[PRUEBA 23] Inercia: al caminar y frenar, el ruedo se balancea y el cuello sigue al cuerpo...")
+    from inercia_tela import InerciaTela
+    resultados_23 = {}
+    for calce_23 in ("holgado", "entallado"):
+        ine = InerciaTela()
+        ruedo_23, cuello_23 = [], []
+        for i in range(60):
+            t_23 = i / 30.0
+            x_23 = 320 + 240 * min(t_23, 0.6)  # camina 0,6 s a 240 px/s y frena
+            r_23 = ine.aplicar({"hem_mid": np.float32([x_23, 400]), "collar_top_mid": np.float32([x_23, 100])},
+                               t_23, calce_23, 200)
+            ruedo_23.append(float(r_23["hem_mid"][0] - x_23))
+            cuello_23.append(abs(float(r_23["collar_top_mid"][0] - x_23)))
+        d_23 = np.array(ruedo_23)
+        resultados_23[calce_23] = (d_23[10:18].mean(), d_23[18:40].max(), abs(d_23[-1]), max(cuello_23))
+    atras_h, pasa_h, final_h, cuello_h = resultados_23["holgado"]
+    atras_e, pasa_e, _, _ = resultados_23["entallado"]
+    assert cuello_h < 0.01, f"El cuello se atrasó {cuello_h:.1f} px: los puntos que sostienen la prenda no deben tener inercia"
+    assert -12 < atras_h < -1.5 and pasa_h > 1.5, f"El ruedo no se balancea (atrás {atras_h:.1f} px, se pasa {pasa_h:.1f} px)"
+    assert abs(atras_e) < abs(atras_h), "Una prenda entallada debe balancearse menos que una holgada"
+    assert final_h < 0.5, f"Con la persona quieta, el ruedo quedó corrido {final_h:.1f} px"
+    print(f"  Holgada: ruedo {atras_h:.1f} px al caminar, se pasa {pasa_h:.1f} px al frenar | entallada: {atras_e:.1f} / {pasa_e:.1f} px")
+    print("  [OK] Prueba 23 superada: la tela tiene inercia y la prenda no se atrasa.")
+
+    # =============================================================
+    # PRUEBA 24: DIRECCIÓN DE LA LUZ (LA PRENDA SE ILUMINA COMO LA PERSONA)
+    # =============================================================
+    print("\n[PRUEBA 24] La luz de la cámara: se detecta si viene de un costado o de arriba...")
+    from luz_escena import medir_direccion
+    fr_l, ms_l, _, pts_l = sp.crear_persona_sintetica("rectangulo", ancho=640, alto=480, cx=320, cy=150,
+                                                      ancho_hombros=150, largo_torso=200)
+    tr_l = PoseTracker()
+    tr_l.detector.close()
+    info_l = tr_l._calcular_geometria_corporal(pts_l, dict(sp.crear_persona_sintetica.ultima_z),
+                                               {k: 0.99 for k in pts_l}, 640, 480)
+    info_l["mascara"] = ms_l
+    gx = np.linspace(-1, 1, 640)[None, :] + np.zeros((480, 1))
+    gy = np.linspace(-1, 1, 480)[:, None] + np.zeros((1, 640))
+    def con_luz(ganancia):
+        return medir_direccion(np.clip(fr_l * ganancia[:, :, None], 0, 255).astype(np.uint8), info_l)
+    pareja, derecha, izquierda, arriba = con_luz(np.ones((480, 640))), con_luz(1 + 0.35 * gx), \
+        con_luz(1 - 0.35 * gx), con_luz(1 - 0.3 * gy)
+    assert abs(pareja[0]) < 0.08 and abs(pareja[1]) < 0.08, f"Con luz pareja se detectó dirección {pareja}"
+    assert derecha[0] > 0.15 and izquierda[0] < -0.15, f"Luz lateral mal detectada: {derecha} / {izquierda}"
+    assert arriba[1] > 0.15, f"Luz de arriba no detectada: {arriba}"
+    print(f"  Derecha {derecha[0]:+.2f} | izquierda {izquierda[0]:+.2f} | arriba {arriba[1]:+.2f}")
+    print("  [OK] Prueba 24 superada: la prenda se ilumina desde donde viene la luz.")
+
     print("\n" + "=" * 65)
-    print("   [OK] TODAS LAS 21 PRUEBAS DEL SISTEMA FUERON SUPERADAS CON EXITO")
+    print("   [OK] TODAS LAS 24 PRUEBAS DEL SISTEMA FUERON SUPERADAS CON EXITO")
     print("=" * 65)
 
 if __name__ == "__main__":

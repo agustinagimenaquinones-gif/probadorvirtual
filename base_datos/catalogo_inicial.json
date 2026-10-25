@@ -1,0 +1,173 @@
+{
+  "_comentario": "Datos para cargar el catálogo en MySQL (cargar_prendas_mysql.py). Después de la carga, la base es la fuente del catálogo: los cambios de precio, stock o descripción se hacen en MySQL. 'color_foto' es el color de la prenda en la foto; los demás colores se generan tiñéndola. 'stock_por_variante' son las unidades de cada combinación color + talle.",
+  "stock_por_variante": 5,
+  "tablas_medidas": {
+    "oversize": {
+      "S": {"pecho": 112, "cintura": 112, "cadera": 112, "hombros": 52, "largo": 70},
+      "M": {"pecho": 118, "cintura": 118, "cadera": 118, "hombros": 54, "largo": 72},
+      "L": {"pecho": 124, "cintura": 124, "cadera": 124, "hombros": 56, "largo": 74},
+      "XL": {"pecho": 130, "cintura": 130, "cadera": 130, "hombros": 58, "largo": 76}
+    },
+    "regular_unisex": {
+      "S": {"pecho": 98, "cintura": 94, "cadera": 98, "hombros": 44, "largo": 66},
+      "M": {"pecho": 104, "cintura": 100, "cadera": 104, "hombros": 46, "largo": 68},
+      "L": {"pecho": 110, "cintura": 106, "cadera": 110, "hombros": 48, "largo": 70},
+      "XL": {"pecho": 116, "cintura": 112, "cadera": 116, "hombros": 50, "largo": 72}
+    },
+    "remera_fitted_mujer": {
+      "XS": {"pecho": 80, "cintura": 66, "cadera": 84, "hombros": 36, "largo": 56},
+      "S": {"pecho": 84, "cintura": 70, "cadera": 88, "hombros": 37, "largo": 58},
+      "M": {"pecho": 88, "cintura": 74, "cadera": 92, "hombros": 38, "largo": 60},
+      "L": {"pecho": 94, "cintura": 80, "cadera": 98, "hombros": 40, "largo": 62}
+    },
+    "top_mujer": {
+      "XS": {"pecho": 78, "cintura": 62, "cadera": 82, "hombros": 32, "largo": 44},
+      "S": {"pecho": 82, "cintura": 66, "cadera": 86, "hombros": 33, "largo": 46},
+      "M": {"pecho": 86, "cintura": 70, "cadera": 90, "hombros": 34, "largo": 48},
+      "L": {"pecho": 92, "cintura": 76, "cadera": 96, "hombros": 36, "largo": 50}
+    },
+    "chomba_crop_mujer": {
+      "XS": {"pecho": 80, "cintura": 66, "cadera": 84, "hombros": 35, "largo": 48},
+      "S": {"pecho": 84, "cintura": 70, "cadera": 88, "hombros": 36, "largo": 50},
+      "M": {"pecho": 88, "cintura": 74, "cadera": 92, "hombros": 37, "largo": 52},
+      "L": {"pecho": 94, "cintura": 80, "cadera": 98, "hombros": 39, "largo": 54}
+    }
+  },
+  "prendas": [
+    {
+      "codigo": "remera_oversize_hot_wheels", "sku": "VV-0001",
+      "nombre": "Remera Oversize Hot Wheels Speed", "categoria": "Remeras", "genero": "unisex",
+      "precio": 34900, "calce": "holgado", "talles": ["S", "M", "L", "XL"], "medidas": "oversize",
+      "descripcion": "Remera oversize de algodón pesado con estampa racing Hot Wheels 'Built for Speed' al frente. Calce amplio y hombro caído, ideal para un look urbano relajado.",
+      "color_foto": "Crema",
+      "colores": [{"nombre": "Crema", "hex": "#ECE7DA"}, {"nombre": "Blanco", "hex": "#F5F5F2"}, {"nombre": "Gris Perla", "hex": "#C9C9C6"}]
+    },
+    {
+      "codigo": "remera_oversize_la_milano", "sku": "VV-0002",
+      "nombre": "Remera Oversize La Milano", "categoria": "Remeras", "genero": "unisex",
+      "precio": 36900, "calce": "holgado", "talles": ["S", "M", "L", "XL"], "medidas": "oversize",
+      "descripcion": "Remera oversize premium con escudo y caligrafía 'La Milano · Disegnato in Italia' en bordó. Estética old money, minimalista y elegante.",
+      "color_foto": "Blanco",
+      "colores": [{"nombre": "Blanco", "hex": "#F4F3F0"}, {"nombre": "Arena", "hex": "#D9CBB3"}, {"nombre": "Gris Perla", "hex": "#C9C9C6"}]
+    },
+    {
+      "codigo": "remera_oversize_that_silence", "sku": "VV-0003",
+      "nombre": "Remera Oversize That Silence", "categoria": "Remeras", "genero": "unisex",
+      "precio": 33900, "calce": "holgado", "talles": ["S", "M", "L", "XL"], "medidas": "oversize",
+      "descripcion": "Remera oversize con tipografía editorial 'That silence that speaks volume' en azul profundo. Algodón suave lavado, corte boxy.",
+      "color_foto": "Blanco Hueso",
+      "colores": [{"nombre": "Blanco Hueso", "hex": "#F1EFE9"}, {"nombre": "Gris Perla", "hex": "#C9C9C6"}, {"nombre": "Celeste Bruma", "hex": "#C8D6E0"}]
+    },
+    {
+      "codigo": "remera_fitted_negra", "sku": "VV-0004",
+      "nombre": "Remera Fitted Minimal", "categoria": "Remeras", "genero": "mujer",
+      "precio": 24900, "calce": "entallado", "talles": ["XS", "S", "M", "L"], "medidas": "remera_fitted_mujer",
+      "descripcion": "Remera entallada de tejido técnico elástico con logo mínimo al frente. Silueta al cuerpo, cuello redondo y caída impecable.",
+      "color_foto": "Negro",
+      "colores": [{"nombre": "Negro", "hex": "#151515"}, {"nombre": "Blanco", "hex": "#F2F0EC"}, {"nombre": "Verde Salvia", "hex": "#A3B09A"}]
+    },
+    {
+      "codigo": "top_halter_seamless", "sku": "VV-0005",
+      "nombre": "Top Halter Seamless", "categoria": "Tops", "genero": "mujer",
+      "precio": 22900, "calce": "entallado", "talles": ["XS", "S", "M", "L"], "medidas": "top_mujer",
+      "descripcion": "Top halter sin costuras de tejido acanalado deportivo, espalda descubierta y ajuste suave. Para entrenar o para un look athleisure.",
+      "color_foto": "Azul Noche",
+      "colores": [{"nombre": "Azul Noche", "hex": "#1B2133"}, {"nombre": "Chocolate", "hex": "#4A3328"}, {"nombre": "Blanco", "hex": "#EFEDE8"}]
+    },
+    {
+      "codigo": "top_halter_escote_v", "sku": "VV-0006",
+      "nombre": "Top Halter Escote V", "categoria": "Tops", "genero": "mujer",
+      "precio": 25900, "calce": "entallado", "talles": ["XS", "S", "M", "L"], "medidas": "top_mujer",
+      "descripcion": "Top halter con escote en V cruzado, frunce bajo el busto y tela fluida con elastano. Un básico sensual y atemporal.",
+      "color_foto": "Negro",
+      "colores": [{"nombre": "Negro", "hex": "#151515"}, {"nombre": "Bordó", "hex": "#5A1A24"}, {"nombre": "Crema", "hex": "#EDE4D3"}]
+    },
+    {
+      "codigo": "top_asimetrico_animal_print", "sku": "VV-0007",
+      "nombre": "Top Asimétrico Animal Print", "categoria": "Tops", "genero": "mujer",
+      "precio": 27900, "calce": "entallado", "talles": ["XS", "S", "M", "L"], "medidas": "top_mujer",
+      "descripcion": "Top de un hombro con estampa leopardo y fruncido lateral que estiliza la cintura. Tendencia statement para salir.",
+      "color_foto": "Leopardo",
+      "colores": [{"nombre": "Leopardo", "hex": "#8B6A45"}]
+    },
+    {
+      "codigo": "top_halter_lunares", "sku": "VV-0008",
+      "nombre": "Top Halter Lunares Retro", "categoria": "Tops", "genero": "mujer",
+      "precio": 26900, "calce": "entallado", "talles": ["XS", "S", "M", "L"], "medidas": "top_mujer",
+      "descripcion": "Top estilo pin-up con lunares, escote corazón, lazo al cuello y volado en el ruedo. Romántico y retro.",
+      "color_foto": "Blanco con Lunares",
+      "colores": [{"nombre": "Blanco con Lunares", "hex": "#F4F4F2"}]
+    },
+    {
+      "codigo": "chomba_crop_rosa", "sku": "VV-0009",
+      "nombre": "Chomba Crop Acanalada", "categoria": "Chombas", "genero": "mujer",
+      "precio": 26900, "calce": "entallado", "talles": ["XS", "S", "M", "L"], "medidas": "chomba_crop_mujer",
+      "descripcion": "Chomba corta de rib con cuello blanco en contraste, escote en V y bordado al pecho. Preppy, femenina y fresca.",
+      "color_foto": "Rosa",
+      "colores": [{"nombre": "Rosa", "hex": "#EBC7CF"}, {"nombre": "Celeste", "hex": "#BFD6E8"}, {"nombre": "Lavanda", "hex": "#CDBFE0"}]
+    },
+    {
+      "codigo": "remera_retro_champs", "sku": "VV-0010",
+      "nombre": "Remera Retro Champs-Élysées", "categoria": "Remeras", "genero": "unisex",
+      "precio": 34900, "calce": "regular", "talles": ["S", "M", "L", "XL"], "medidas": "regular_unisex",
+      "descripcion": "Remera estilo jersey vintage con vivos en contraste, puños y cuello acanalados crema, escudo y caligrafía 'Champs-Élysées'.",
+      "color_foto": "Azul Marino",
+      "colores": [{"nombre": "Azul Marino", "hex": "#1C2438"}, {"nombre": "Verde Bosque", "hex": "#1F3A2E"}, {"nombre": "Bordó", "hex": "#5A1A24"}]
+    },
+    {
+      "codigo": "polo_azul_marino", "sku": "VV-0011",
+      "nombre": "Chomba Polo Azul Marino", "categoria": "Chombas", "genero": "hombre",
+      "precio": 28500, "calce": "regular", "talles": ["S", "M", "L", "XL"],
+      "descripcion": "Chomba tipo polo azul marino con cuello blanco estructurado, tapeta y ribete en mangas.",
+      "color_foto": "Azul Marino",
+      "colores": [{"nombre": "Azul Marino", "hex": "#1C2438"}, {"nombre": "Verde Bosque", "hex": "#1F3A2E"}],
+      "medidas_talles": {
+        "S": {"pecho": 92, "cintura": 84, "cadera": 92, "hombros": 42, "largo": 68},
+        "M": {"pecho": 98, "cintura": 90, "cadera": 98, "hombros": 44, "largo": 71},
+        "L": {"pecho": 104, "cintura": 96, "cadera": 104, "hombros": 46, "largo": 74},
+        "XL": {"pecho": 110, "cintura": 102, "cadera": 110, "hombros": 48, "largo": 77}
+      }
+    },
+    {
+      "codigo": "polo_ralph_lauren", "sku": "VV-0012",
+      "nombre": "Chomba Polo Ralph Lauren", "categoria": "Chombas", "genero": "hombre",
+      "precio": 38500, "calce": "regular", "talles": ["S", "M", "L", "XL"],
+      "descripcion": "Chomba clásica Ralph Lauren azul marino con cuello estructurado, icónico Big Pony blanco, escudo '20' y número '3' bordado en la manga.",
+      "color_foto": "Azul Marino",
+      "colores": [{"nombre": "Azul Marino", "hex": "#1C2438"}],
+      "medidas_talles": {
+        "S": {"pecho": 94, "cintura": 86, "cadera": 94, "hombros": 43, "largo": 69},
+        "M": {"pecho": 100, "cintura": 92, "cadera": 100, "hombros": 45, "largo": 72},
+        "L": {"pecho": 106, "cintura": 98, "cadera": 106, "hombros": 47, "largo": 75},
+        "XL": {"pecho": 112, "cintura": 104, "cadera": 112, "hombros": 49, "largo": 78}
+      }
+    },
+    {
+      "codigo": "top_asimetrico_negro", "sku": "VV-0013",
+      "nombre": "Top Asimétrico Drapeado Negro", "categoria": "Tops", "genero": "mujer",
+      "precio": 34000, "calce": "entallado", "talles": ["S", "M", "L"],
+      "margen_hombros": 0.16, "margen_cuello": 0.25,
+      "descripcion": "Exclusivo diseño de alta costura con escote halter drapeado, un hombro al descubierto y elegante fular lateral en satén negro profundo.",
+      "color_foto": "Negro",
+      "colores": [{"nombre": "Negro", "hex": "#151515"}, {"nombre": "Bordó", "hex": "#5A1A24"}],
+      "medidas_talles": {
+        "S": {"pecho": 86, "cintura": 66, "cadera": 90, "hombros": 36, "largo": 76},
+        "M": {"pecho": 92, "cintura": 72, "cadera": 96, "hombros": 38, "largo": 79},
+        "L": {"pecho": 98, "cintura": 78, "cadera": 102, "hombros": 40, "largo": 82}
+      }
+    },
+    {
+      "codigo": "top_satin", "sku": "VV-0014", "archivo": "prendas/top_satin_champagne.png",
+      "nombre": "Top Satinado Champagne", "categoria": "Tops", "genero": "mujer",
+      "precio": 24000, "calce": "entallado", "talles": ["S", "M"],
+      "margen_hombros": 0.16, "margen_cuello": 0.26,
+      "descripcion": "Exclusivo top halter de satén de seda drapeado con cuello alto de alta costura.",
+      "color_foto": "Champagne",
+      "colores": [{"nombre": "Champagne", "hex": "#D8C3A5"}, {"nombre": "Rosa Empolvado", "hex": "#D9A7A0"}],
+      "medidas_talles": {
+        "S": {"pecho": 86, "cintura": 68, "cadera": 90, "hombros": 36, "largo": 62},
+        "M": {"pecho": 92, "cintura": 74, "cadera": 96, "hombros": 38, "largo": 65}
+      }
+    }
+  ]
+}

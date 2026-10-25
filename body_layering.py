@@ -11,7 +11,20 @@ import cv2
 MARGEN_SILUETA_TALLE = {"XS": 1, "S": 2, "M": 4, "L": 7, "XL": 10, "XXL": 13}
 
 # Intensidad máxima de las sombras del cuerpo sobre la prenda (0 = nada, 1 = todo)
-INTENSIDAD_SOMBRAS = 0.25
+INTENSIDAD_SOMBRAS = 0.35
+
+# Luz de la prenda: las fotos de producto son de estudio y, pegadas tal cual sobre la
+# cámara, los colores oscuros (azul marino, negro) se ven apagados. Una curva gamma
+# menor que 1 levanta las sombras de la tela sin quemar los blancos.
+GAMMA_PRENDA = 0.80
+# Cuánto toma la prenda del tono de la luz de la escena (0 = nada, 1 = todo)
+TONO_ESCENA = 0.40
+
+# Efecto de volumen: cuánto se oscurece la tela hacia los costados del cuerpo
+INTENSIDAD_VOLUMEN = 0.10
+
+# Sombra que la tela proyecta sobre el cuerpo en sus bordes (mangas, ruedo, cuello)
+INTENSIDAD_SOMBRA_CONTACTO = 0.30
 
 
 def recortar_prenda_a_silueta(parche_rgba, xmin, ymin, mascara, info_anatomica, talle="M", frame_bgr=None):
@@ -136,25 +149,128 @@ def aplicar_sombras_del_cuerpo(frame_bgr, parche_rgba, xmin, ymin, intensidad=IN
     if np.count_nonzero(tela) < 50:
         return parche_rgba
 
-    luz = cv2.cvtColor(zona, cv2.COLOR_BGR2GRAY).astype(np.float32)
-    k = max(5, (min(alto_p, ancho_p) // 25) | 1)
-    luz = cv2.GaussianBlur(luz, (k, k), 0)
-    media = float(np.mean(luz[tela])) + 1e-3
-    relativa = np.clip(luz / media, 0.70, 1.20)
-    factor = 1.0 + (relativa - 1.0) * intensidad
+    # Desenfoque amplio: pasan los pliegues y el volumen, no los estampados de la ropa
+    # de la persona. Se calcula en una imagen 4 veces más chica (es mucho más rápido).
+    gris = cv2.cvtColor(zona, cv2.COLOR_BGR2GRAY)
+    chica = cv2.resize(gris, (max(4, ancho_p // 4), max(4, alto_p // 4)), interpolation=cv2.INTER_AREA)
+    k = max(3, (min(chica.shape) // 12) | 1)
+    chica = cv2.GaussianBlur(chica.astype(np.float32), (k, k), 0)
+    luz = cv2.resize(chica, (ancho_p, alto_p), interpolation=cv2.INTER_LINEAR)
+    media = float(cv2.mean(luz, mask=tela.astype(np.uint8))[0]) + 1e-3
+    factor = 1.0 + (np.clip(luz / media, 0.60, 1.30) - 1.0) * intensidad
 
     resultado = parche_rgba.copy()
-    color = resultado[:, :, :3].astype(np.float32) * factor[:, :, None]
-    resultado[:, :, :3] = np.clip(color, 0, 255).astype(np.uint8)
+    resultado[:, :, :3] = cv2.multiply(np.ascontiguousarray(parche_rgba[:, :, :3]),
+                                       cv2.merge([factor, factor, factor]), dtype=cv2.CV_8U)
     return resultado
 
 
+def armonizar_con_la_escena(frame_bgr, parche_rgba, gamma=GAMMA_PRENDA, tono=TONO_ESCENA):
+    """
+    Adapta los colores de la prenda a la luz de la cámara: levanta las sombras de la
+    tela (curva gamma sobre la luminosidad, así el color no pierde saturación) y le da
+    un poco del tono de la escena (balance de blancos por "mundo gris": si la luz es
+    verdosa o cálida, la prenda también).
+    """
+    if parche_rgba is None:
+        return parche_rgba
+    muestra = cv2.resize(frame_bgr, (64, 36), interpolation=cv2.INTER_AREA).reshape(-1, 3).astype(np.float32)
+    muestra = muestra[muestra.max(axis=1) < 245]  # sin zonas quemadas (lámparas, ventanas)
+    ganancias = np.ones(3, dtype=np.float32)
+    if len(muestra) > 100:
+        medias = muestra.mean(axis=0) + 1e-3
+        ganancias = np.clip(1.0 + (medias / float(medias.mean()) - 1.0) * tono, 0.85, 1.15)
+    # Factor de aclarado según la luminosidad de cada píxel: curva(L) / L
+    niveles = np.arange(256, dtype=np.float32)
+    aclarado = 255.0 * np.power(niveles / 255.0, gamma) / np.maximum(niveles, 1.0)
+    bgr = np.ascontiguousarray(parche_rgba[:, :, :3])
+    factor = aclarado[cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY)]
+    resultado = parche_rgba.copy()
+    resultado[:, :, :3] = cv2.multiply(bgr, cv2.merge([factor * float(g) for g in ganancias]), dtype=cv2.CV_8U)
+    return resultado
+
+
+def sombreado_volumen(parche_rgba, dist_sh, intensidad=INTENSIDAD_VOLUMEN):
+    """
+    Efecto 3D: el cuerpo es redondeado, así que la tela recibe menos luz hacia los
+    costados. Oscurece suavemente la prenda cerca de su borde (según la distancia al
+    contorno) y la deja igual en el centro del torso.
+    """
+    if parche_rgba is None or intensidad <= 0:
+        return parche_rgba
+    tela = (parche_rgba[:, :, 3] > 128).astype(np.uint8)
+    if not tela.any():
+        return parche_rgba
+    distancia = cv2.distanceTransform(tela, cv2.DIST_L2, 3)
+    curva = np.sqrt(np.clip(distancia / max(4.0, dist_sh * 0.20), 0.0, 1.0))
+    factor = (1.0 - intensidad) + intensidad * curva
+    resultado = parche_rgba.copy()
+    resultado[:, :, :3] = cv2.multiply(np.ascontiguousarray(parche_rgba[:, :, :3]),
+                                       cv2.merge([factor, factor, factor]), dtype=cv2.CV_8U)
+    return resultado
+
+
+def sombra_de_contacto(roi_fondo, parche_alfa, dist_sh, intensidad=INTENSIDAD_SOMBRA_CONTACTO):
+    """
+    Oscurece un poco el cuerpo justo debajo de los bordes de la tela (la luz viene de
+    arriba): así la prenda parece apoyada sobre el cuerpo y no pegada encima.
+    Modifica roi_fondo en el lugar.
+    """
+    if intensidad <= 0:
+        return
+    alto_p, ancho_p = parche_alfa.shape
+    corrimiento = max(1, int(round(dist_sh * 0.02)))
+    sigma = max(0.5, dist_sh * 0.0125)  # a mitad de tamaño (más rápido)
+    desplazada = np.zeros_like(parche_alfa)
+    desplazada[corrimiento:] = parche_alfa[:-corrimiento]
+    mitad = cv2.resize(desplazada, (max(2, ancho_p // 2), max(2, alto_p // 2)), interpolation=cv2.INTER_AREA)
+    difusa = cv2.resize(cv2.GaussianBlur(mitad, (0, 0), sigma), (ancho_p, alto_p), interpolation=cv2.INTER_LINEAR)
+    sombra = difusa * (1.0 - parche_alfa) * intensidad
+    # Sólo se tocan los píxeles con sombra (una franja angosta bajo los bordes)
+    donde = sombra > 0.01
+    if np.any(donde):
+        roi_fondo[donde] = (roi_fondo[donde] * (1.0 - sombra[donde])[:, None]).astype(np.uint8)
+
+
+def ocultar_detras_del_cuello(parche_alfa, xmin, ymin, info_anatomica):
+    """
+    Vista de frente, el cuello de la persona tapa la parte de atrás del cuello de la
+    prenda (la tira de tela que rodea la nuca). Borra esa tela en una zona con forma
+    de U sobre el cuello: los costados del cuello de la prenda y el escote quedan.
+    Modifica parche_alfa en el lugar.
+    """
+    p_neck = np.asarray(info_anatomica["p_neck_base"], dtype=np.float32) - np.array([xmin, ymin], np.float32)
+    u_up = np.asarray(info_anatomica["u_up"], dtype=np.float32)
+    u_sh = np.asarray(info_anatomica["u_sh"], dtype=np.float32)
+    d_sh = float(info_anatomica["dist_sh"])
+    medio = float(info_anatomica.get("medio_cuello", d_sh * 0.20)) * 0.95
+    base = d_sh * 0.02          # la U empieza apenas por encima de la base del cuello...
+    hondo = medio * 0.35        # ... y en el centro baja un poco más (curva del escote)
+    suave = max(2.0, d_sh * 0.015)
+
+    alto_p, ancho_p = parche_alfa.shape
+    x0 = int(max(0, p_neck[0] - medio - d_sh * 0.2))
+    x1 = int(min(ancho_p, p_neck[0] + medio + d_sh * 0.2))
+    y1 = int(min(alto_p, p_neck[1] + d_sh * 0.15))
+    if x1 <= x0 or y1 <= 0:
+        return
+    ys, xs = np.mgrid[0:y1, x0:x1].astype(np.float32)
+    rx, ry = xs - p_neck[0], ys - p_neck[1]
+    arriba = rx * u_up[0] + ry * u_up[1]       # > 0: por encima de la base del cuello
+    lateral = np.abs(rx * u_sh[0] + ry * u_sh[1])
+    borde_u = base - hondo * np.sqrt(np.clip(1.0 - (lateral / medio) ** 2, 0.0, 1.0))
+    dentro = np.clip((medio - lateral) / suave, 0.0, 1.0) * np.clip((arriba - borde_u) / suave, 0.0, 1.0)
+    parche_alfa[0:y1, x0:x1] *= 1.0 - dentro
+
+
 def componer_prenda_con_capas(frame_bgr, parche_rgba, xmin, ymin, xmax, ymax, info_anatomica,
-                              talle="M", recortar_silueta=True, sombras=True):
+                              talle="M", recortar_silueta=True, sombras=True, cuello_por_delante=False):
     """
     Integra la prenda sobre el cuerpo en el cuadro de la cámara respetando las capas anatómicas:
-      1. Coloca la prenda sobre el torso.
+      1. Coloca la prenda sobre el torso, con la luz de la escena y una sombra suave en sus bordes.
       2. Protege el cuello y mentón para que el cuello de la prenda no cubra la cara.
+         Con cuello_por_delante (prendas con cuello, vistas de frente), el cuello de la
+         persona tapa además la parte de atrás del cuello de la prenda.
       3. Conserva los antebrazos y manos por delante cuando la persona cruza los brazos
          o los coloca al frente del torso.
     """
@@ -169,7 +285,10 @@ def componer_prenda_con_capas(frame_bgr, parche_rgba, xmin, ymin, xmax, ymax, in
     if recortar_silueta and mascara is not None:
         parche_rgba = recortar_prenda_a_silueta(parche_rgba, xmin, ymin, mascara, info_anatomica, talle, frame_bgr)
     if sombras:
+        parche_rgba = armonizar_con_la_escena(frame_bgr, parche_rgba)
         parche_rgba = aplicar_sombras_del_cuerpo(frame_bgr, parche_rgba, xmin, ymin)
+        if info_anatomica:
+            parche_rgba = sombreado_volumen(parche_rgba, float(info_anatomica.get("dist_sh", 200.0)))
 
     # 1. Recorte de la región de interés (ROI)
     roi_fondo = resultado[ymin:ymax, xmin:xmax]
@@ -201,10 +320,14 @@ def componer_prenda_con_capas(frame_bgr, parche_rgba, xmin, ymin, xmax, ymax, in
                 parche_alfa[filas_fade, :] *= 1.0 - (1.0 - factor) * en_franja[None, :]
             arriba = slice(0, max(0, chin_local_y - fade_len))
             parche_alfa[arriba, :] *= (1.0 - en_franja)[None, :]
+    if cuello_por_delante and info_anatomica and "p_neck_base" in info_anatomica:
+        ocultar_detras_del_cuello(parche_alfa, xmin, ymin, info_anatomica)
 
     # 3. Fusión Alfa de la prenda sobre el cuerpo
     # (sobre todo el recuadro de una vez: más rápido que seleccionar píxel por píxel)
     mask_valida = parche_alfa > 0.02
+    if sombras and info_anatomica and np.any(mask_valida):
+        sombra_de_contacto(roi_fondo, parche_alfa, float(info_anatomica.get("dist_sh", 200.0)))
     if np.any(mask_valida):
         alpha_3c = parche_alfa[:, :, np.newaxis]
         mezcla = (roi_fondo * (1.0 - alpha_3c) + parche_bgr * alpha_3c).astype(np.uint8)

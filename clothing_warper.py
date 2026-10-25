@@ -88,6 +88,44 @@ def _deformar_triangulo_vectorizado(img_src, patch_dst, t_src, t_dst):
 
 _CACHE_REDUCIDAS = {}
 
+# Suavizado de la deformación (fracción del lado menor del parche). Entre triángulo y
+# triángulo la malla cambia de dirección de golpe (la tela se ve "quebrada"); al
+# suavizar el desplazamiento de cada píxel, la tela se curva de forma continua, como
+# con una malla muchísimo más fina. 0 = sin suavizado.
+SUAVIZADO_MALLA = 0.035
+
+
+def _zona_triangulo(triangulo):
+    """1 = torso, 2 = manga izquierda, 3 = manga derecha (se suavizan por separado)."""
+    if any(p.startswith(("sleeve", "bicep")) for p in triangulo):
+        return 2 if any(p.endswith("_l") for p in triangulo) else 3
+    return 1
+
+
+def _suavizar_por_zonas(map_x, map_y, zonas, sigma, reduccion=3):
+    """
+    Promedio gaussiano del mapa de origen, dentro de cada zona (torso, cada manga):
+    así la manga y el torso no se mezclan en la axila. Se calcula a un tercio del
+    tamaño y sólo dentro del recuadro de cada zona (es lo que lo hace rápido).
+    """
+    for zona in np.unique(zonas):
+        if zona == 0:
+            continue
+        sel = zonas == zona
+        filas = np.flatnonzero(sel.any(axis=1))
+        cols = np.flatnonzero(sel.any(axis=0))
+        y0, y1, x0, x1 = filas[0], filas[-1] + 1, cols[0], cols[-1] + 1
+        sel_z = sel[y0:y1, x0:x1]
+        m = sel_z.astype(np.float32)
+        chico = (max(2, (x1 - x0) // reduccion), max(2, (y1 - y0) // reduccion))
+        s_chico = max(0.8, sigma / reduccion)
+        peso = cv2.GaussianBlur(cv2.resize(m, chico, interpolation=cv2.INTER_AREA), (0, 0), s_chico) + 1e-4
+        for mapa in (map_x, map_y):
+            zona_mapa = mapa[y0:y1, x0:x1]
+            suma = cv2.GaussianBlur(cv2.resize(zona_mapa * m, chico, interpolation=cv2.INTER_AREA), (0, 0), s_chico)
+            suave = cv2.resize(suma / peso, (x1 - x0, y1 - y0), interpolation=cv2.INTER_LINEAR)
+            np.copyto(zona_mapa, suave, where=sel_z)
+
 
 def _version_reducida(img, src_pts, ancho_destino, alto_destino):
     """Devuelve (imagen, puntos) reducidos si la prenda es mucho más grande que el destino."""
@@ -121,6 +159,7 @@ def _deformar_en_una_pasada(img_src, src_pts, dst_pts, xmin, ymin, patch_w, patc
         return None
     etiquetas = np.zeros((patch_h, patch_w), dtype=np.uint8)  # 0 = sin tela
     inversas = np.zeros((len(triangulos) + 1, 2, 3), dtype=np.float32)
+    zona_de = np.zeros(len(triangulos) + 1, dtype=np.uint8)
     offset = np.array([xmin, ymin], dtype=np.float32)
     for i, (p1, p2, p3) in enumerate(triangulos, start=1):
         t_src = np.float32([src_pts[p1], src_pts[p2], src_pts[p3]])
@@ -134,6 +173,7 @@ def _deformar_en_una_pasada(img_src, src_pts, dst_pts, xmin, ymin, patch_w, patc
         except cv2.error:
             continue
         cv2.fillConvexPoly(etiquetas, np.round(t_dst).astype(np.int32), i)
+        zona_de[i] = _zona_triangulo((p1, p2, p3))
 
     if not np.any(etiquetas):
         return None
@@ -144,6 +184,9 @@ def _deformar_en_una_pasada(img_src, src_pts, dst_pts, xmin, ymin, patch_w, patc
         return inversas[:, fila, col][etiquetas]
     map_x = coef(0, 0) * xs + coef(0, 1) * ys + coef(0, 2)
     map_y = coef(1, 0) * xs + coef(1, 1) * ys + coef(1, 2)
+    if SUAVIZADO_MALLA > 0:
+        sigma = max(1.5, min(patch_w, patch_h) * SUAVIZADO_MALLA)
+        _suavizar_por_zonas(map_x, map_y, zona_de[etiquetas], sigma)
     sin_tela = etiquetas == 0
     map_x[sin_tela] = -1.0
     map_y[sin_tela] = -1.0

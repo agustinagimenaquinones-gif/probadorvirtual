@@ -376,9 +376,15 @@ def ajustar_mangas(parche_rgba, xmin, ymin, mascara, info, holgura=1.05):
 
 
 def ajustar_prenda_completa(parche_rgba, xmin, ymin, mascara, info, holgura=1.05, calce="regular", memoria=None,
-                            frame_bgr=None):
-    """Escáner completo: hombros, mangas y torso. frame_bgr (opcional) mejora la separación brazo / torso."""
-    p = ajustar_hombros(parche_rgba, xmin, ymin, mascara, info, holgura)
-    p = ajustar_mangas(p, xmin, ymin, mascara, info, holgura)
+                            frame_bgr=None, tiene_mangas=True):
+    """
+    Escáner completo: hombros, mangas y torso. frame_bgr (opcional) mejora la separación brazo / torso.
+    Sin mangas (top halter, musculosa) no se ajustan hombros ni mangas: las tiras no se
+    apoyan en la línea del hombro y estirarlas hasta ahí deforma el diseño.
+    """
+    p = parche_rgba
+    if tiene_mangas:
+        p = ajustar_hombros(p, xmin, ymin, mascara, info, holgura)
+        p = ajustar_mangas(p, xmin, ymin, mascara, info, holgura)
     return ajustar_prenda_a_silueta(p, xmin, ymin, mascara, info, holgura=holgura, calce=calce, memoria=memoria,
                                     frame_bgr=frame_bgr)

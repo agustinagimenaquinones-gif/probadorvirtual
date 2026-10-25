@@ -39,11 +39,41 @@ def dibujar_medidas(frame, info_anatomica):
                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1, cv2.LINE_AA)
 
 
+# Botón para volver a la galería (abajo a la derecha, en la barra de controles)
+TEXTO_BOTON_GALERIA = "<  Volver a la galeria"
+ANCHO_BOTON_GALERIA = 230
+ALTO_BOTON_GALERIA = 34
+
+
+def rectangulo_boton_galeria(ancho, alto):
+    """(x0, y0, x1, y1) del botón 'Volver a la galería' en una imagen de ese tamaño."""
+    x1, y1 = ancho - 14, alto - 6
+    return x1 - ANCHO_BOTON_GALERIA, y1 - ALTO_BOTON_GALERIA, x1, y1
+
+
+def punto_en_boton_galeria(x, y, ancho, alto):
+    x0, y0, x1, y1 = rectangulo_boton_galeria(ancho, alto)
+    return x0 <= x <= x1 and y0 <= y <= y1
+
+
+def dibujar_boton_galeria(frame, resaltado=False):
+    """Botón rosa con el texto centrado; más intenso cuando el mouse está encima."""
+    alto, ancho = frame.shape[:2]
+    x0, y0, x1, y1 = rectangulo_boton_galeria(ancho, alto)
+    color = (109, 117, 197) if resaltado else (128, 136, 217)  # COLOR_ROSE(_HOVER) en BGR
+    cv2.rectangle(frame, (x0, y0), (x1, y1), color, -1, cv2.LINE_AA)
+    cv2.rectangle(frame, (x0, y0), (x1, y1), (255, 255, 255), 1, cv2.LINE_AA)
+    (w, h), _ = cv2.getTextSize(TEXTO_BOTON_GALERIA, cv2.FONT_HERSHEY_SIMPLEX, 0.55, 1)
+    cv2.putText(frame, TEXTO_BOTON_GALERIA, (x0 + (ANCHO_BOTON_GALERIA - w) // 2, y0 + (ALTO_BOTON_GALERIA + h) // 2),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.55, (255, 255, 255), 1, cv2.LINE_AA)
+
+
 NOMBRES_ORIENTACION = {"frente": "De frente", "girada": "Girada", "perfil": "De perfil", "espalda": "De espaldas"}
 
 
 def dibujar_hud_probador(frame, prenda_info, factor_escala, mensaje_notif="", modo_malla=True,
-                         talle="M", figura="", fps=None, recorte=True, orientacion=None):
+                         talle="M", figura="", fps=None, recorte=True, orientacion=None,
+                         boton_resaltado=False, color=""):
     """Dibuja la interfaz visual limpia y elegante requerida sobre la cámara."""
     alto, ancho, _ = frame.shape
 
@@ -69,8 +99,8 @@ def dibujar_hud_probador(frame, prenda_info, factor_escala, mensaje_notif="", mo
     cv2.putText(frame, modo_texto, (max(420, ancho - ancho_texto - 20), 28), cv2.FONT_HERSHEY_SIMPLEX, 0.50, (140, 230, 255), 1, cv2.LINE_AA)
 
     # Información de la prenda elegida
-    precio_formateado = f"${prenda_info['precio']:,}".replace(',', '.')
-    texto_prenda = f"Prenda: {prenda_info['nombre']}   |   Precio: {precio_formateado}"
+    precio_formateado = f"${int(round(float(prenda_info['precio']))):,}".replace(',', '.')
+    texto_prenda = f"{prenda_info['nombre']}" + (f" ({color})" if color else "") + f"   |   {precio_formateado}"
     cv2.putText(frame, texto_prenda, (25, 52), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (210, 180, 120), 1, cv2.LINE_AA)
 
     # Talle elegido, sus medidas y figura estimada
@@ -82,8 +112,9 @@ def dibujar_hud_probador(frame, prenda_info, factor_escala, mensaje_notif="", mo
     cv2.putText(frame, texto_talle, (ancho - 740, 52), cv2.FONT_HERSHEY_SIMPLEX, 0.46, (200, 235, 200), 1, cv2.LINE_AA)
 
     # Controles inferiores limpios y claros
-    controles = "[G] Galeria | [C] Foto | [1..9 / N] Prenda | [T] Talle | [V] Medidas | [R] Recorte | [M] Modo | [+/-] Calce | [Q] Salir"
+    controles = "[G] Galeria | [C] Foto | [1..9 / N] Prenda | [T] Talle | [K] Color | [V] Medidas | [R] Recorte | [M] Modo | [+/-] Calce | [Q] Cerrar camara"
     cv2.putText(frame, controles, (25, alto - 18), cv2.FONT_HERSHEY_SIMPLEX, 0.46, (220, 220, 220), 1, cv2.LINE_AA)
+    dibujar_boton_galeria(frame, boton_resaltado)
 
     # Notificación temporal en el centro (por ejemplo al sacar una foto o cambiar prenda/talle)
     if mensaje_notif:

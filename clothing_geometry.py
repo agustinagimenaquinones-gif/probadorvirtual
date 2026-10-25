@@ -124,11 +124,13 @@ def detectar_puntos_clave_prenda(img_rgba):
     y_torso = int(ymin + gh * 0.55)
     xs_torso = np.where(alpha[y_torso, :] > 25)[0]
 
+    # Con mangas, a la altura de los hombros la prenda es más ancha que en el torso;
+    # un top halter o una musculosa es igual o más angosta arriba.
     tiene_mangas = True
     if len(xs_sh) > 0 and len(xs_torso) > 0:
         ancho_sh = xs_sh[-1] - xs_sh[0]
         ancho_torso = xs_torso[-1] - xs_torso[0]
-        if ancho_sh < ancho_torso * 1.05 and (gw / gh) < 0.75:
+        if ancho_sh < ancho_torso * 1.04:
             tiene_mangas = False
 
     pts = {

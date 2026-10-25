@@ -1,83 +1,137 @@
 # ==========================================================
 # PROYECTO: PROBADOR VIRTUAL INTELIGENTE
-# HERRAMIENTA: REGISTRAR EN MYSQL LAS PRENDAS NUEVAS DE 'prendas/'
+# HERRAMIENTA: CARGAR EL CATÁLOGO EN MYSQL
 # ==========================================================
-# El catálogo vive en MySQL. Cuando se copia un PNG nuevo en 'prendas/', este
-# script lo registra con datos por defecto (precio, talles S/M/L, calce regular),
-# que después se corrigen en MySQL Workbench. Las prendas que ya están en la base
-# no se tocan.
-#
 # Uso (desde la carpeta del proyecto):
-#     .venv\Scripts\python.exe cargar_prendas_mysql.py
+#     .venv\Scripts\python.exe cargar_prendas_mysql.py --crear-tablas
 #
-#   --crear-tablas  ejecuta antes base_datos/probador_virtual_mysql.sql
-#                   (no borra nada: sólo crea lo que falta).
-#   --stock N       stock inicial de cada talle nuevo (por defecto 0).
+# 1. Carga las prendas de base_datos/catalogo_inicial.json (con sus colores, SKU,
+#    talles, medidas y stock inicial) que todavía no estén en la base.
+# 2. Saca del catálogo las prendas listadas en RETIRADAS (si se vendieron, quedan
+#    'inactivas' para conservar el historial de ventas).
+# 3. Registra con datos por defecto cualquier PNG nuevo de 'prendas/' que no esté
+#    en el catálogo (después se corrigen en MySQL Workbench).
+#
+#   --crear-tablas    ejecuta antes base_datos/probador_virtual_mysql.sql (no borra
+#                     nada: crea lo que falta y agrega columnas nuevas).
+#   --actualizar      pisa los datos de las prendas (nombre, precio, colores...) con
+#                     los del JSON. El stock vendido NO se toca.
+#   --reponer-stock   lleva a 'stock_por_variante' las variantes que tengan menos
+#                     (queda registrado como reposición).
 
 import argparse
 import glob
+import json
 import os
 import sys
 
 from catalogo import CARPETA_PRENDAS, definicion_automatica
-from conexion_mysql import conectar, crear_tablas, guardar_prenda, leer_configuracion
+from conexion_mysql import (conectar, crear_tablas, guardar_prenda, leer_configuracion, borrar_prenda,
+                            quitar_variantes_sobrantes)
 from vista_espalda import es_archivo_espalda
 
 SCRIPT_SQL = os.path.join("base_datos", "probador_virtual_mysql.sql")
+CATALOGO_JSON = os.path.join("base_datos", "catalogo_inicial.json")
 
-# Categoría según cómo empieza el nombre del archivo
-CATEGORIAS = {"polo": "Chombas", "remera": "Remeras", "top": "Tops"}
+# Remeras dibujadas por programa (sin diseño real): fuera del catálogo
+RETIRADAS = ["remera", "remera_azul", "remera_blanca", "remera_negra", "remera_roja"]
 
-
-def categoria_de(prenda):
-    nombre = os.path.splitext(os.path.basename(prenda["archivo"]))[0]
-    prefijo = nombre.split("_")[0].lower()
-    return CATEGORIAS.get(prefijo, "Otros")
+# Categoría según cómo empieza el nombre del archivo (prendas sin datos en el JSON)
+CATEGORIAS = {"polo": "Chombas", "chomba": "Chombas", "remera": "Remeras", "top": "Tops", "buzo": "Buzos"}
 
 
-def rutas_registradas(cursor):
-    """Rutas de imagen de todas las prendas de la base (activas o no)."""
-    cursor.execute("SELECT imagen_url FROM prendas")
-    return {os.path.abspath(fila[0]) for fila in cursor.fetchall()}
+def categoria_de(ruta):
+    nombre = os.path.splitext(os.path.basename(ruta))[0]
+    return CATEGORIAS.get(nombre.split("_")[0].lower(), "Otros")
 
 
-def prendas_nuevas_de_la_carpeta(registradas):
-    """Los PNG de 'prendas/' que todavía no están en la base."""
-    return [
-        definicion_automatica(ruta)
-        for ruta in sorted(glob.glob(os.path.join(CARPETA_PRENDAS, "*.png")))
-        if os.path.abspath(ruta) not in registradas and not es_archivo_espalda(ruta)
-    ]
+def leer_catalogo_json():
+    with open(CATALOGO_JSON, encoding="utf-8") as archivo:
+        datos = json.load(archivo)
+    tablas = datos.get("tablas_medidas", {})
+    for prenda in datos["prendas"]:
+        if "medidas_talles" not in prenda and prenda.get("medidas") in tablas:
+            prenda["medidas_talles"] = {t: tablas[prenda["medidas"]][t] for t in prenda["talles"]}
+    return datos
+
+
+def reponer_stock(cursor, unidades):
+    cursor.execute("SELECT id_inventario, stock FROM inventario i JOIN prendas p ON p.id_prenda = i.id_prenda "
+                   "WHERE p.estado = 'activa' AND i.stock < %s FOR UPDATE", (unidades,))
+    filas = cursor.fetchall()
+    for id_inv, stock in filas:
+        cursor.execute("UPDATE inventario SET stock = %s WHERE id_inventario = %s", (unidades, id_inv))
+        cursor.execute("INSERT INTO movimientos_stock (id_inventario, cantidad, motivo, stock_resultante) "
+                       "VALUES (%s, %s, 'reposicion', %s)", (id_inv, unidades - stock, unidades))
+    return len(filas)
+
+
+def quitar_colores_sin_uso(cursor):
+    """Borra los colores que no usa ninguna variante ni ninguna prenda (restos de catálogos viejos)."""
+    cursor.execute("DELETE c FROM colores c WHERE NOT EXISTS (SELECT 1 FROM inventario i WHERE i.id_color = c.id_color) "
+                   "AND NOT EXISTS (SELECT 1 FROM prendas p WHERE p.id_color_foto = c.id_color)")
+    return cursor.rowcount
 
 
 def main():
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
-    parser = argparse.ArgumentParser(description="Registra en MySQL las prendas nuevas de 'prendas/'.")
+    parser = argparse.ArgumentParser(description="Carga el catálogo de prendas en MySQL.")
     parser.add_argument("--crear-tablas", action="store_true")
-    parser.add_argument("--stock", type=int, default=0)
+    parser.add_argument("--actualizar", action="store_true")
+    parser.add_argument("--reponer-stock", action="store_true")
     args = parser.parse_args()
-    if args.stock < 0:
-        parser.error("--stock no puede ser negativo")
 
     datos = leer_configuracion()
     print(f"Conectando a MySQL en {datos['host']}:{datos['port']} como '{datos['user']}'...")
     try:
         if args.crear_tablas:
             crear_tablas(SCRIPT_SQL)
-            print(f"[OK] Tablas creadas o ya existentes ({SCRIPT_SQL}).")
+            print(f"[OK] Tablas creadas o actualizadas ({SCRIPT_SQL}).")
         conexion = conectar()
     except Exception as error:
         print(f"[ERROR] {error}")
         print("Revisá base_datos/mysql.ini (copiá mysql.ini.ejemplo y completá la contraseña).")
         return 1
 
-    nuevas = 0
+    catalogo = leer_catalogo_json()
+    stock_inicial = int(catalogo.get("stock_por_variante", 5))
+    contadores = {"nueva": 0, "actualizada": 0, "existente": 0}
     try:
         cursor = conexion.cursor()
-        for prenda in prendas_nuevas_de_la_carpeta(rutas_registradas(cursor)):
-            if guardar_prenda(cursor, prenda, categoria_de(prenda), stock=args.stock) == "nueva":
-                nuevas += 1
-                print(f"  [nueva] {prenda['id']} - {prenda['nombre']}")
+        for codigo in RETIRADAS:
+            estado = borrar_prenda(cursor, codigo)
+            if estado:
+                print(f"  [{estado}] {codigo}")
+
+        codigos_json = set()
+        for prenda in catalogo["prendas"]:
+            codigos_json.add(prenda["codigo"])
+            resultado = guardar_prenda(cursor, prenda, stock=stock_inicial, actualizar=args.actualizar)
+            borradas = quitar_variantes_sobrantes(cursor, prenda["codigo"], [c["nombre"] for c in prenda["colores"]])
+            contadores[resultado] += 1
+            extra = f" ({borradas} variantes de colores viejos quitadas)" if borradas else ""
+            print(f"  [{resultado}] {prenda['sku']} {prenda['nombre']}{extra}")
+
+        # PNG nuevos que no están ni en el JSON ni en la base
+        cursor.execute("SELECT imagen_url FROM prendas")
+        registradas = {os.path.abspath(f[0]) for f in cursor.fetchall()}
+        for ruta in sorted(glob.glob(os.path.join(CARPETA_PRENDAS, "*.png"))):
+            codigo = os.path.splitext(os.path.basename(ruta))[0]
+            if (os.path.abspath(ruta) in registradas or codigo in codigos_json or codigo in RETIRADAS
+                    or es_archivo_espalda(ruta)):
+                continue
+            prenda = definicion_automatica(ruta)
+            prenda.update({"codigo": prenda["id"], "categoria": categoria_de(ruta),
+                           "colores": [{"nombre": "Colección", "hex": None}], "color_foto": "Colección"})
+            guardar_prenda(cursor, prenda, stock=stock_inicial)
+            contadores["nueva"] += 1
+            print(f"  [nueva, datos por defecto] {prenda['codigo']}")
+
+        quitados = quitar_colores_sin_uso(cursor)
+        if quitados:
+            print(f"  [colores] {quitados} colores sin uso borrados")
+        if args.reponer_stock:
+            print(f"  [stock] {reponer_stock(cursor, stock_inicial)} variantes repuestas a {stock_inicial} unidades")
         conexion.commit()
     except Exception as error:
         conexion.rollback()
@@ -86,7 +140,8 @@ def main():
     finally:
         conexion.close()
 
-    print(f"[OK] Prendas nuevas registradas: {nuevas}.")
+    print(f"[OK] Nuevas: {contadores['nueva']}, actualizadas: {contadores['actualizada']}, "
+          f"sin cambios: {contadores['existente']}.")
     return 0
 
 

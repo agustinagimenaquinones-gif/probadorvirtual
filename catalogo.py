@@ -9,6 +9,8 @@ import cv2
 import numpy as np
 from clothing_geometry import detectar_puntos_clave_prenda
 from vista_espalda import cargar_espalda, es_archivo_espalda
+from limpieza_prenda import recuperar_partes_borradas, extender_color_de_la_tela
+from diseno_rigido import extraer_diseno
 from config import USAR_MYSQL
 
 CARPETA_PRENDAS = "prendas"
@@ -142,6 +144,17 @@ def agregar_margen_transparente(img_rgba, margen=MARGEN_TRANSPARENTE):
                               cv2.BORDER_CONSTANT, value=(0, 0, 0, 0))
 
 
+def preparar_imagen_prenda(img_rgba):
+    """
+    Deja la foto lista para el probador: recupera las partes de la prenda que se
+    borraron junto con el fondo (por ejemplo, un cuello blanco), recorta los márgenes,
+    agrega el borde transparente y pone el color de la tela debajo de la parte
+    transparente (así no aparece un halo del color del fondo en los bordes).
+    """
+    img = recortar_bordes_alfa(recuperar_partes_borradas(img_rgba))
+    return extender_color_de_la_tela(agregar_margen_transparente(img))
+
+
 def holgura_de_talle(talle):
     """Factor de holgura de un talle (M si el talle no es conocido)."""
     return HOLGURA_TALLES.get(str(talle).upper(), HOLGURA_TALLES["M"])
@@ -159,8 +172,7 @@ def talle_inicial(prenda, preferido="M"):
 
 def _agregar_espalda(item, ruta):
     """Agrega a la prenda su vista de espalda (foto propia o automática) y sus puntos de malla."""
-    preparar = lambda img: agregar_margen_transparente(recortar_bordes_alfa(img))
-    espalda, automatica = cargar_espalda(ruta, item["imagen_cv"], preparar)
+    espalda, automatica = cargar_espalda(ruta, item["imagen_cv"], preparar_imagen_prenda)
     src_espalda, _ = detectar_puntos_clave_prenda(espalda)
     if src_espalda is None:
         espalda, src_espalda = item["imagen_cv"], item["src_puntos"]
@@ -230,7 +242,7 @@ def cargar_catalogo_completo():
                     item.get("voltear_horizontal", False),
                     item.get("voltear_vertical", False)
                 )
-                img_recortada = agregar_margen_transparente(recortar_bordes_alfa(img_orientada))
+                img_recortada = preparar_imagen_prenda(img_orientada)
                 
                 # Extraer puntos anatómicos de la prenda para la malla
                 src_pts, tiene_mangas = detectar_puntos_clave_prenda(img_recortada)
@@ -240,6 +252,8 @@ def cargar_catalogo_completo():
                 item_copia["imagen_original_cv"] = img_orientada
                 item_copia["src_puntos"] = src_pts
                 item_copia["tiene_mangas"] = tiene_mangas
+                # Logos y estampados aparte, para dibujarlos rígidos (sin deformarse)
+                item_copia["imagen_lisa_cv"], item_copia["bloques_diseno"] = extraer_diseno(img_recortada)
                 _agregar_espalda(item_copia, ruta)
 
                 catalogo_cargado.append(item_copia)
@@ -251,7 +265,7 @@ def cargar_catalogo_completo():
         if os.path.abspath(ruta) not in rutas_procesadas and not es_archivo_espalda(ruta):
             img_rgba = cv2.imread(ruta, cv2.IMREAD_UNCHANGED)
             if img_rgba is not None and img_rgba.shape[2] == 4:
-                img_recortada = agregar_margen_transparente(recortar_bordes_alfa(img_rgba))
+                img_recortada = preparar_imagen_prenda(img_rgba)
                 src_pts, tiene_mangas = detectar_puntos_clave_prenda(img_recortada)
 
                 catalogo_cargado.append({
@@ -261,6 +275,7 @@ def cargar_catalogo_completo():
                     "src_puntos": src_pts,
                     "tiene_mangas": tiene_mangas
                 })
+                catalogo_cargado[-1]["imagen_lisa_cv"], catalogo_cargado[-1]["bloques_diseno"] =                     extraer_diseno(img_recortada)
                 _agregar_espalda(catalogo_cargado[-1], ruta)
 
     return catalogo_cargado
