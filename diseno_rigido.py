@@ -28,8 +28,25 @@ AREA_MAXIMA_DETALLES = 0.22
 MAXIMO_BLOQUES = 6
 # Contraste mínimo con la tela para ser diseño (los pliegues y sombras tienen menos)
 CONTRASTE_DISENO = 45
-# Con más piezas sueltas que esto, es un estampado repetido (lunares, animal print)
-MAXIMO_PIEZAS = 35
+# Con más piezas sueltas que esto, es un estampado repetido (lunares ~170, animal print
+# ~350). Un texto o un escudo con vivos tiene menos (~50).
+MAXIMO_PIEZAS = 100
+# Un logo o un texto tiene muchos bordes marcados ADENTRO (trazos, letras); una
+# sombra, un pliegue o un brillo es una mancha lisa con borde sólo alrededor.
+# Fracción mínima del interior del bloque con bordes marcados (diseños reales: 0,40
+# a 0,97; sombras, pliegues, brillos y cuellos: 0 a 0,35).
+BORDES_MINIMOS = 0.36
+
+
+def _densidad_bordes(recorte_bgra):
+    """Fracción del interior del diseño con bordes marcados (gradiente fuerte)."""
+    dentro = recorte_bgra[:, :, 3] > 128
+    interior = cv2.erode(dentro.astype(np.uint8), np.ones((5, 5), np.uint8)) > 0
+    if not interior.any():
+        return 0.0
+    gris = cv2.cvtColor(np.ascontiguousarray(recorte_bgra[:, :, :3]), cv2.COLOR_BGR2GRAY).astype(np.float32)
+    gradiente = np.hypot(cv2.Sobel(gris, cv2.CV_32F, 1, 0), cv2.Sobel(gris, cv2.CV_32F, 0, 1))
+    return float(np.mean(gradiente[interior] > 60))
 
 
 def _mascara_detalles(img_rgba, escala):
@@ -69,7 +86,11 @@ def extraer_diseno(img_rgba):
     # Estampado repetido: muchas piezas repartidas por casi toda la prenda (un texto
     # largo también tiene muchas piezas, pero juntas en una zona)
     _, _, stats_piezas, centros = cv2.connectedComponentsWithStats(detalles.astype(np.uint8), connectivity=8)
-    validas = stats_piezas[1:, cv2.CC_STAT_AREA] >= 4
+    # Los vivos y costuras (piezas largas y finas) son parte del corte de la prenda,
+    # no un estampado: no cuentan para decidir si el diseño se repite por toda la tela
+    lados = stats_piezas[1:, [cv2.CC_STAT_WIDTH, cv2.CC_STAT_HEIGHT]]
+    finas = lados.max(axis=1) > 6 * np.maximum(1, lados.min(axis=1))
+    validas = (stats_piezas[1:, cv2.CC_STAT_AREA] >= 4) & ~finas
     if int(validas.sum()) > MAXIMO_PIEZAS:
         c = centros[1:][validas]
         reparto = (np.ptp(c[:, 0]) / ancho_prenda) * (np.ptp(c[:, 1]) / alto_prenda)
@@ -106,7 +127,6 @@ def extraer_diseno(img_rgba):
         # Dentro del bloque se toma también lo de menos contraste (trazos finos de las
         # letras): así no quedan restos del diseño en la prenda lisa
         zona = (etiquetas == i) & (diferencia > CONTRASTE_DISENO * 0.45) & tela
-        quitar_peq |= zona.astype(np.uint8)
         # Recorte a tamaño completo, con el diseño como alfa (borde suave)
         x0, y0 = max(0, int((x - margen) / escala)), max(0, int((y - margen) / escala))
         x1, y1 = min(ancho, int((x + w + margen) / escala) + 1), min(alto, int((y + h + margen) / escala) + 1)
@@ -114,7 +134,13 @@ def extraer_diseno(img_rgba):
         mascara = cv2.GaussianBlur((mascara > 0.35).astype(np.float32), (0, 0), 0.8)
         recorte = img_rgba[y0:y1, x0:x1].copy()
         recorte[:, :, 3] = (mascara * recorte[:, :, 3]).astype(np.uint8)
+        if _densidad_bordes(recorte) < BORDES_MINIMOS:
+            continue  # sombra, pliegue, brillo o cuello: es tela, no un diseño
+        quitar_peq |= zona.astype(np.uint8)
         bloques.append({"img": recorte, "centro": ((x0 + x1) / 2.0, (y0 + y1) / 2.0), "caja": (x0, y0, x1, y1)})
+
+    if not bloques:
+        return img_rgba, []
 
     # Bloques cercanos (las palabras y el escudo de un mismo diseño) forman un grupo
     # que se mueve con UNA sola transformación: así no se separan entre sí.
