@@ -13,11 +13,10 @@
 #    en el catálogo (después se corrigen en MySQL Workbench).
 #
 #   --crear-tablas    ejecuta antes base_datos/probador_virtual_mysql.sql (no borra
-#                     nada: crea lo que falta y agrega columnas nuevas).
+#                     nada: crea las tablas que falten).
 #   --actualizar      pisa los datos de las prendas (nombre, precio, colores...) con
 #                     los del JSON. El stock vendido NO se toca.
-#   --reponer-stock   lleva a 'stock_por_variante' las variantes que tengan menos
-#                     (queda registrado como reposición).
+#   --reponer-stock   lleva a 'stock_por_variante' las variantes que tengan menos.
 
 import argparse
 import glob
@@ -56,21 +55,19 @@ def leer_catalogo_json():
 
 
 def reponer_stock(cursor, unidades):
-    cursor.execute("SELECT id_inventario, stock FROM inventario i JOIN prendas p ON p.id_prenda = i.id_prenda "
-                   "WHERE p.estado = 'activa' AND i.stock < %s FOR UPDATE", (unidades,))
-    filas = cursor.fetchall()
-    for id_inv, stock in filas:
-        cursor.execute("UPDATE inventario SET stock = %s WHERE id_inventario = %s", (unidades, id_inv))
-        cursor.execute("INSERT INTO movimientos_stock (id_inventario, cantidad, motivo, stock_resultante) "
-                       "VALUES (%s, %s, 'reposicion', %s)", (id_inv, unidades - stock, unidades))
-    return len(filas)
-
-
-def quitar_colores_sin_uso(cursor):
-    """Borra los colores que no usa ninguna variante ni ninguna prenda (restos de catálogos viejos)."""
-    cursor.execute("DELETE c FROM colores c WHERE NOT EXISTS (SELECT 1 FROM inventario i WHERE i.id_color = c.id_color) "
-                   "AND NOT EXISTS (SELECT 1 FROM prendas p WHERE p.id_color_foto = c.id_color)")
-    return cursor.rowcount
+    """Lleva a 'unidades' cada variante que tenga menos. Devuelve cuántas repuso."""
+    cursor.execute("SELECT id_prenda, stock FROM prenda WHERE estado = 'activa' FOR UPDATE")
+    repuestas = 0
+    for id_prenda, stock in cursor.fetchall():
+        variantes = json.loads(stock)
+        bajas = [v for v in variantes.values() if v["stock"] < unidades]
+        for variante in bajas:
+            variante["stock"] = unidades
+        if bajas:
+            cursor.execute("UPDATE prenda SET stock = %s WHERE id_prenda = %s",
+                           (json.dumps(variantes, ensure_ascii=False), id_prenda))
+            repuestas += len(bajas)
+    return repuestas
 
 
 def main():
@@ -113,7 +110,7 @@ def main():
             print(f"  [{resultado}] {prenda['sku']} {prenda['nombre']}{extra}")
 
         # PNG nuevos que no están ni en el JSON ni en la base
-        cursor.execute("SELECT imagen_url FROM prendas")
+        cursor.execute("SELECT imagen_url FROM prenda")
         registradas = {os.path.abspath(f[0]) for f in cursor.fetchall()}
         for ruta in sorted(glob.glob(os.path.join(CARPETA_PRENDAS, "*.png"))):
             codigo = os.path.splitext(os.path.basename(ruta))[0]
@@ -127,9 +124,6 @@ def main():
             contadores["nueva"] += 1
             print(f"  [nueva, datos por defecto] {prenda['codigo']}")
 
-        quitados = quitar_colores_sin_uso(cursor)
-        if quitados:
-            print(f"  [colores] {quitados} colores sin uso borrados")
         if args.reponer_stock:
             print(f"  [stock] {reponer_stock(cursor, stock_inicial)} variantes repuestas a {stock_inicial} unidades")
         conexion.commit()

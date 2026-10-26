@@ -6,6 +6,7 @@
 import datetime
 import gc
 import math
+import time
 
 import cv2
 from PIL import Image, ImageTk
@@ -89,6 +90,7 @@ class BoutiqueVirtualApp:
         self.color_seleccionado = tk.StringVar(value="")
         self.filtro_actual = "Todo"
         self.cliente = None
+        self.ultima_prueba = None  # (id_prueba, id_prenda) de la última vez que se usó la cámara
         self._animacion = None
 
         self.contenedor_principal = tk.Frame(self.root, bg=COLOR_BG_APP)
@@ -701,10 +703,13 @@ class BoutiqueVirtualApp:
                 return
             cupon = cupones.get(cupon_var.get())
             try:
+                # Si la compra sale de probarse esta prenda con la cámara, queda unida a esa prueba
+                id_prueba = (self.ultima_prueba[0] if self.ultima_prueba
+                             and self.ultima_prueba[1] == prenda["id_prenda"] else None)
                 r = tienda.comprar([{"id_prenda": prenda["id_prenda"], "color": color, "talle": talle,
                                      "cantidad": cant}],
                                    self.cliente["id_cliente"] if self.cliente else None,
-                                   cupon["id_cupon"] if cupon else None, usar_puntos.get())
+                                   cupon["codigo"] if cupon else None, usar_puntos.get(), id_prueba=id_prueba)
             except tienda.ErrorTienda as error:
                 messagebox.showwarning("Compra", str(error), parent=modal)
                 return
@@ -718,7 +723,7 @@ class BoutiqueVirtualApp:
                 pass
             if r["cliente"]:
                 self.cliente = r["cliente"]
-            mensaje = f"¡Gracias por tu compra! Pedido #{r['id_pedido']} por {precio_str(r['detalle']['total'])}."
+            mensaje = f"¡Gracias por tu compra! Compra #{r['id_compra']} por {precio_str(r['detalle']['total'])}."
             if r["detalle"]["puntos_ganados"]:
                 mensaje += f"\nSumaste {r['detalle']['puntos_ganados']} puntos."
             if r["nivel_nuevo"]:
@@ -733,6 +738,19 @@ class BoutiqueVirtualApp:
     # ---------------------------------------------------------------------
     # VISTA 3: CÁMARA
     # ---------------------------------------------------------------------
+    def registrar_prueba(self, prenda, color, segundos):
+        """Guarda en la tabla prueba qué se probó y cuánto tiempo (nunca imágenes)."""
+        self.ultima_prueba = None
+        if not prenda.get("id_prenda"):
+            return  # prenda sin base de datos (catálogo de respaldo)
+        try:
+            import tienda
+            id_prueba = tienda.registrar_prueba(prenda["id_prenda"], color, self.talle_seleccionado.get(), segundos,
+                                                self.cliente["id_cliente"] if self.cliente else None)
+            self.ultima_prueba = (id_prueba, prenda["id_prenda"])
+        except Exception as error:
+            print(f"[Prueba] No se pudo registrar en MySQL: {error}")
+
     def lanzar_camara(self):
         """Oculta la galería, abre la cámara y al cerrarla vuelve al detalle de la prenda probada."""
         if not self.prenda_seleccionada:
@@ -746,6 +764,7 @@ class BoutiqueVirtualApp:
         # en pausa (lo común se libera igual al dejar de usarse).
         gc.collect()
         gc.disable()
+        inicio = time.time()
         try:
             prenda_final, color_final = ejecutar_probador_camara(
                 self.prenda_seleccionada, self.catalogo, talle_elegido=self.talle_seleccionado.get(),
@@ -753,6 +772,7 @@ class BoutiqueVirtualApp:
         finally:
             gc.enable()
             gc.collect()
+        self.registrar_prueba(prenda_final or self.prenda_seleccionada, color_final, time.time() - inicio)
         self.color_seleccionado.set(color_final or "")
         self.root.deiconify()
         self.mostrar_confirmacion(prenda_final or self.prenda_seleccionada)
