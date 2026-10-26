@@ -18,6 +18,7 @@ from pose_tracker import PoseTracker
 from clothing_geometry import detectar_puntos_clave_prenda, TRIANGULOS_ESTRUCTURADOS
 from clothing_warper import deformar_malla_prenda
 from body_layering import componer_prenda_con_capas
+from vista_costado import generar_vista_costado
 from catalogo import cargar_catalogo_completo, holgura_de_talle
 from body_measure import ancho_total
 from siluetas_prueba import crear_persona_sintetica
@@ -490,14 +491,60 @@ def ejecutar_todas_las_pruebas():
           f"({'foto propia' if not polo['espalda_automatica'] else 'automática'})")
     print("  [OK] Prueba 17 superada: de espaldas no se muestran logos ni botones del frente.")
 
-    print("\n[PRUEBA 18] De perfil la prenda se desvanece suavemente (sin verse rota)...")
-    opacidad, pasos = 1.0, []
-    for _ in range(12):
-        opacidad += (0.0 - opacidad) * 0.25
-        pasos.append(opacidad)
-    assert pasos[0] > 0.5 and pasos[-1] < 0.05, "El desvanecido debe ser gradual y terminar casi en 0"
-    print(f"  Opacidad: {pasos[0]:.2f} -> {pasos[3]:.2f} -> {pasos[-1]:.2f} en 12 cuadros (~0,4 s)")
-    print("  [OK] Prueba 18 superada: de perfil se avisa en lugar de mostrar la prenda deformada.")
+    print("\n[PRUEBA 18] De perfil se ve la prenda de costado, pegada a la silueta...")
+    tracker_p = PoseTracker()
+    tracker_p.detector.close()
+    vistas_perfil = []
+    for derecha in (True, False):
+        fr_p, ms_p, _, pts_p2 = sp.crear_persona_de_perfil(mira_a_la_derecha=derecha)
+        z_p = dict(sp.crear_persona_de_perfil.ultima_z)
+        inf_p = tracker_p._calcular_geometria_corporal(pts_p2, z_p, {k: 0.99 for k in pts_p2}, ancho, alto)
+        assert inf_p["orientacion_cuadro"] == "perfil", f"No se detectó el perfil: {inf_p['orientacion_cuadro']}"
+        lado = inf_p["lado_cercano"]
+        assert np.allclose(inf_p[f"p_sh_{lado}"], pts_p2["sh_left"]), "El brazo cercano debe ser el de menor Z"
+        p0, u_t = inf_p["p_neck_base"], inf_p["u_torso"]
+        p_sh, p_elb, p_wri = (inf_p[f"p_{k}_{lado}"] for k in ("sh", "elb", "wri"))
+        ys_g, xs_g = np.mgrid[0:alto, 0:ancho].astype(np.float32)
+        t_px = (xs_g - p0[0]) * u_t[0] + (ys_g - p0[1]) * u_t[1]
+        largo_p = 1.06 * inf_p["dist_torso"]
+        brazo_p = np.zeros((alto, ancho), np.uint8)
+        for a_, b_ in ((p_sh, p_elb), (p_elb, p_wri)):
+            cv2.line(brazo_p, tuple(np.int32(a_)), tuple(np.int32(b_)), 255, int(inf_p["ancho_hombros_frente"] * 0.45))
+        zona = (ms_p > 0.5) & (t_px > 0.05 * largo_p) & (t_px < 0.85 * largo_p) & (brazo_p == 0)
+        for p in catalogo:
+            r = generar_vista_costado(p["imagen_espalda_cv"], p["src_puntos_espalda"], p["tiene_mangas"],
+                                      inf_p, ms_p, holgura_talle=holgura_de_talle("M"))
+            assert r is not None, f"{p['id']}: no se armó la vista de costado"
+            parche_p, x0p, y0p, x1p, y1p = r
+            alfa_p = np.zeros((alto, ancho), np.float32)
+            alfa_p[y0p:y1p, x0p:x1p] = parche_p[:, :, 3] / 255.0
+            # El torso (sin el brazo de adelante) queda cubierto
+            cubierto = float(np.mean(alfa_p[zona] > 0.5))
+            assert cubierto > 0.90, f"{p['id']}: el torso de costado quedó cubierto sólo un {cubierto:.0%}"
+            # Ni el cuello ni las piernas: la tela va de los hombros al ruedo
+            con_tela = alfa_p > 0.5
+            assert not np.any(con_tela & (t_px < -0.06 * inf_p["dist_torso"])), f"{p['id']}: la tela tapa el cuello"
+            assert not np.any(con_tela & (t_px > largo_p * 1.03)), f"{p['id']}: la tela pasa del ruedo"
+            # Manga: cubre el brazo de arriba y deja ver el antebrazo; sin mangas, el brazo se ve
+            brazo_arriba, antebrazo = (p_sh + p_elb) * 0.5, (p_elb + p_wri) * 0.5
+            assert alfa_p[int(antebrazo[1]), int(antebrazo[0])] < 0.1, f"{p['id']}: la tela tapa el antebrazo"
+            en_brazo = alfa_p[int(brazo_arriba[1]), int(brazo_arriba[0])]
+            if p["tiene_mangas"]:
+                assert en_brazo > 0.5, f"{p['id']}: falta la manga de costado"
+            else:
+                assert en_brazo < 0.1, f"{p['id']}: sin mangas el brazo debe verse"
+        if derecha:
+            for pid in ("polo_azul_marino", "top_asimetrico_animal_print", "top_halter_lunares"):
+                pr = next((x for x in catalogo if x["id"] == pid), catalogo[0])
+                r = generar_vista_costado(pr["imagen_espalda_cv"], pr["src_puntos_espalda"], pr["tiene_mangas"],
+                                          inf_p, ms_p, holgura_talle=holgura_de_talle("M"))
+                vistas_perfil.append(componer_prenda_con_capas(fr_p, r[0], *r[1:], inf_p, talle="M",
+                                                               recortar_silueta=False)[60:640, 440:840])
+    tracker_p.cerrar()
+    cv2.imwrite("temp/validacion_perfil.png", np.hstack(vistas_perfil))
+    print(f"  {len(catalogo)} prendas de costado, mirando a cada lado: torso cubierto, "
+          "manga sobre el brazo y antebrazo a la vista")
+    print("  [OK] Prueba 18 superada: de perfil la prenda se ve de costado en lugar de desaparecer.")
 
     # Imagen para la presentación: frente y espalda de la misma prenda
     vistas = []
@@ -800,8 +847,72 @@ def ejecutar_todas_las_pruebas():
     print(f"  Cadera fuera de cuadro: torso a {ang_fuera:.1f}° | cadera mal detectada: torso a {ang_torcido:.1f}°")
     print("  [OK] Prueba 25 superada: la prenda no se tuerce aunque la cadera esté mal estimada.")
 
+    # =============================================================
+    # PRUEBA 26: BRAZOS CRUZADOS, CON PIEL CLARA Y OSCURA
+    # =============================================================
+    print("\n[PRUEBA 26] Brazos cruzados: los antebrazos quedan delante de la prenda (piel clara y oscura)...")
+    tr_x = PoseTracker()
+    tr_x.detector.close()
+    resultados_x = []
+    for nombre_piel, piel in (("clara", (150, 175, 215)), ("oscura", (45, 62, 92))):
+        tr_x.reiniciar_medidas()
+        fr_x, ms_x, _, pts_x = sp.crear_persona_sintetica("reloj_de_arena", color_piel=piel)
+        fr_x, ms_x, pts_x, z_x, antebrazos = sp.cruzar_brazos(
+            fr_x, ms_x, pts_x, dict(sp.crear_persona_sintetica.ultima_z), piel)
+        inf_x = tr_x._calcular_geometria_corporal(pts_x, z_x, {k: 0.99 for k in pts_x}, ancho, alto)
+        assert inf_x["brazos_al_frente"], "Con las muñecas delante del cuerpo, los brazos están al frente"
+        tr_x.agregar_medidas(inf_x, ms_x)
+        inf_x["mascara"] = ms_x
+        dd_x = tr_x.calcular_puntos_destino_malla(inf_x, polo["tiene_mangas"], holgura_talle=holgura_de_talle("M"),
+                                                  calce=polo.get("calce", "regular"), puntos_prenda=polo["src_puntos"])
+        pa_x, a1x, b1x, a2x, b2x = deformar_malla_prenda(polo["imagen_cv"], polo["src_puntos"], dd_x, ancho, alto,
+                                                         polo["tiene_mangas"])
+        pa_x = ajustar_prenda_completa(pa_x, a1x, b1x, ms_x, inf_x, holgura=holgura_de_talle("M"),
+                                       calce=polo.get("calce", "regular"), frame_bgr=fr_x,
+                                       tiene_mangas=polo["tiene_mangas"])
+        out_x = componer_prenda_con_capas(fr_x, pa_x, a1x, b1x, a2x, b2x, inf_x, talle="M")
+        # Puntos sobre la parte media de cada antebrazo (lejos del codo, que queda bajo la manga)
+        muestras = [codo + (muneca - codo) * f for codo, muneca in antebrazos for f in np.linspace(0.35, 0.75, 9)]
+        iguales = [float(np.abs(out_x[int(m[1]), int(m[0])].astype(int) - fr_x[int(m[1]), int(m[0])].astype(int)).max()) < 30
+                   for m in muestras]
+        # y la prenda sí está puesta debajo (no es que no se dibujó nada)
+        debajo = inf_x["p_neck_base"] + inf_x["u_torso"] * (inf_x["dist_torso"] * 0.80)
+        cambio = float(np.abs(out_x[int(debajo[1]), int(debajo[0])].astype(int) - fr_x[int(debajo[1]), int(debajo[0])].astype(int)).max())
+        assert cambio > 40, f"Piel {nombre_piel}: la prenda no se dibujó sobre el torso"
+        resultados_x.append((nombre_piel, float(np.mean(iguales))))
+        assert np.mean(iguales) >= 0.9, f"Piel {nombre_piel}: la prenda tapa los antebrazos ({np.mean(iguales):.0%} visibles)"
+    tr_x.cerrar()
+    print("  Antebrazos a la vista: " + " | ".join(f"piel {n} {v:.0%}" for n, v in resultados_x))
+    print("  [OK] Prueba 26 superada: con los brazos cruzados, los antebrazos se ven por delante de la prenda.")
+
+    # =============================================================
+    # PRUEBA 27: BRAZOS ARRIBA Y CERCA DE LA CÁMARA (LA PRENDA NO TAPA LA CARA)
+    # =============================================================
+    print("\n[PRUEBA 27] Brazos arriba y cerca de la cámara: la prenda no sube sobre la cara...")
+    tr_k = PoseTracker()
+    tr_k.detector.close()
+    fr_k, ms_k, pts_k = sp.persona_cerca_con_brazos_arriba()
+    inf_k = tr_k._calcular_geometria_corporal(pts_k, dict(sp.crear_persona_sintetica.ultima_z),
+                                             {k: 0.99 for k in pts_k}, ancho, alto)
+    tr_k.agregar_medidas(inf_k, ms_k)
+    inf_k["mascara"] = ms_k
+    dd_k = tr_k.calcular_puntos_destino_malla(inf_k, polo["tiene_mangas"], holgura_talle=holgura_de_talle("M"),
+                                              puntos_prenda=polo["src_puntos"])
+    pa_k, a1k, b1k, a2k, b2k = deformar_malla_prenda(polo["imagen_cv"], polo["src_puntos"], dd_k, ancho, alto, True)
+    out_k = componer_prenda_con_capas(fr_k, pa_k, a1k, b1k, a2k, b2k, inf_k, talle="M", cuello_por_delante=True)
+    cara = sp.persona_cerca_con_brazos_arriba.cara
+    tapada = float(np.mean(np.abs(out_k[cara].astype(int) - fr_k[cara].astype(int)).max(axis=1) > 30))
+    # ... pero el cuello de la prenda sigue ahí, alrededor del mentón
+    cuello_k = sp.persona_cerca_con_brazos_arriba.alrededor_del_menton
+    con_prenda = float(np.mean(np.abs(out_k[cuello_k].astype(int) - fr_k[cuello_k].astype(int)).max(axis=1) > 30))
+    tr_k.cerrar()
+    assert tapada < 0.03, f"La prenda tapa el {tapada:.0%} de la parte de abajo de la cara"
+    assert con_prenda > 0.6, f"Alrededor del mentón quedó prenda sólo en el {con_prenda:.0%} (se borró el cuello)"
+    print(f"  Cara tapada por la prenda: {tapada:.1%} | prenda alrededor del mentón: {con_prenda:.0%}")
+    print("  [OK] Prueba 27 superada: con los brazos arriba, la cara queda libre.")
+
     print("\n" + "=" * 65)
-    print("   [OK] TODAS LAS 25 PRUEBAS DEL SISTEMA FUERON SUPERADAS CON EXITO")
+    print("   [OK] TODAS LAS 27 PRUEBAS DEL SISTEMA FUERON SUPERADAS CON EXITO")
     print("=" * 65)
 
 if __name__ == "__main__":

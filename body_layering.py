@@ -238,6 +238,29 @@ def sombra_de_contacto(roi_fondo, parche_alfa, dist_sh, intensidad=INTENSIDAD_SO
         roi_fondo[donde] = (roi_fondo[donde] * (1.0 - sombra[donde])[:, None]).astype(np.uint8)
 
 
+def ocultar_cara(parche_alfa, xmin, ymin, p_nariz, p_menton, medio_cara):
+    """
+    Borra la prenda dentro de un óvalo con la forma de la cara: centrado en la nariz,
+    tan ancho como la cara y hasta el mentón (con un borde suave de pocos píxeles).
+    Modifica parche_alfa en el lugar.
+    """
+    centro = np.asarray(p_nariz, np.float32) - np.array([xmin, ymin], np.float32)
+    medio_alto = float(p_menton[1]) - float(p_nariz[1])
+    medio_ancho = float(medio_cara)
+    if medio_alto < 4 or medio_ancho < 4:
+        return
+    alto_p, ancho_p = parche_alfa.shape
+    x0, x1 = int(max(0, centro[0] - medio_ancho - 3)), int(min(ancho_p, centro[0] + medio_ancho + 4))
+    y0, y1 = int(max(0, centro[1] - medio_alto - 3)), int(min(alto_p, centro[1] + medio_alto + 4))
+    if x1 <= x0 or y1 <= y0:
+        return
+    ys, xs = np.mgrid[y0:y1, x0:x1].astype(np.float32)
+    r = np.sqrt(((xs - centro[0]) / medio_ancho) ** 2 + ((ys - centro[1]) / medio_alto) ** 2)
+    suave = 3.0 / min(medio_ancho, medio_alto)
+    dentro = np.clip((1.0 - r) / suave, 0.0, 1.0)
+    parche_alfa[y0:y1, x0:x1] *= 1.0 - dentro
+
+
 def ocultar_detras_del_cuello(parche_alfa, xmin, ymin, info_anatomica):
     """
     Vista de frente, el cuello de la persona tapa la parte de atrás del cuello de la
@@ -335,6 +358,13 @@ def componer_prenda_con_capas(frame_bgr, parche_rgba, xmin, ymin, xmax, ymax, in
                 parche_alfa[filas_fade, :] *= 1.0 - (1.0 - factor) * en_franja[None, :]
             arriba = slice(0, max(0, chin_local_y - fade_len))
             parche_alfa[arriba, :] *= (1.0 - en_franja)[None, :]
+        # La cara entera, con su forma: un óvalo del ancho de la cara (entre las orejas)
+        # que baja de la nariz hasta el mentón (estimado con la boca). Con los brazos
+        # levantados los hombros suben, la prenda llega a la altura de la mandíbula y la
+        # franja de arriba (pensada para el cuello) es más angosta que la cara. El cuello
+        # de la prenda que queda alrededor del mentón no se toca.
+        if info_anatomica.get("medio_cara") and info_anatomica.get("p_menton") is not None:
+            ocultar_cara(parche_alfa, xmin, ymin, p_nose, info_anatomica["p_menton"], info_anatomica["medio_cara"])
     if cuello_por_delante and info_anatomica and "p_neck_base" in info_anatomica:
         ocultar_detras_del_cuello(parche_alfa, xmin, ymin, info_anatomica)
 

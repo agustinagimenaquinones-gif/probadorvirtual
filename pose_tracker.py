@@ -65,6 +65,9 @@ class PoseTracker:
         self._orientacion_candidata = "frente"
         self._cuadros_candidata = 0
         self.cuadros_para_cambiar = 4
+        # Ancho de hombros / largo del torso medido de frente: de perfil los hombros se
+        # superponen y el ancho real sólo se conoce por lo que se midió antes
+        self.relacion_frente = self.RELACION_FRENTE_TIPICA
 
         # Inicializar modelo de MediaPipe Pose en modo VIDEO para máximo seguimiento temporal
         base_options = python.BaseOptions(model_asset_path=self.model_path)
@@ -99,6 +102,7 @@ class PoseTracker:
     def reiniciar_medidas(self):
         """Olvida las medidas del cuerpo (por ejemplo, cuando entra otra persona)."""
         self.medidas.reiniciar()
+        self.relacion_frente = self.RELACION_FRENTE_TIPICA
 
     def cerrar(self):
         """Libera los recursos del detector (y espera a que termine el hilo, si hay)."""
@@ -510,6 +514,7 @@ class PoseTracker:
     # Umbrales de orientación (relación ancho de hombros / largo del torso)
     RELACION_PERFIL = 0.40   # por debajo: la persona está de perfil (más de ~60°)
     RELACION_GIRADA = 0.60   # por debajo: girada de forma notable
+    RELACION_FRENTE_TIPICA = 0.75  # de frente (hasta que se mide a la persona)
     GIRO_GIRADA = 0.15
 
     @classmethod
@@ -795,18 +800,26 @@ class PoseTracker:
         brazo_arriba_r = elevacion(p_sh_r, p_elb_r)
 
         # --- Cuello: ancho estimado con las orejas (si están), para que el escote lo abrace
+        medio_cara, p_menton = None, None
         if "ear_left" in pts and "ear_right" in pts:
             d_orejas = float(np.linalg.norm(pts["ear_left"] - pts["ear_right"]))
             medio_cuello = float(np.clip(d_orejas * 0.36, dist_sh * 0.13, dist_sh * 0.30))
+            medio_cara = d_orejas * 0.58  # las orejas están en el borde de la cara
         else:
             medio_cuello = dist_sh * 0.20
         if "mouth_left" in pts and "mouth_right" in pts:
             p_boca = (pts["mouth_left"] + pts["mouth_right"]) * 0.5
+            # Mentón: de la boca hacia abajo, 1,7 veces lo que hay de la nariz a la
+            # boca. No depende de los hombros (que suben cuando se levantan los brazos).
+            p_menton = (p_boca + (p_boca - pts["nose"]) * 1.7).astype(np.float32)
         else:
             p_boca = pts["nose"] + (p_neck_base - pts["nose"]) * 0.25
 
         orientacion_cuadro = self.estimar_orientacion(
             pts, vis, dist_sh, dist_torso, caderas_visibles, giro)
+        if orientacion_cuadro == "frente" and caderas_visibles:
+            relacion = float(np.clip(dist_sh / max(1.0, dist_torso), 0.55, 1.10))
+            self.relacion_frente += (relacion - self.relacion_frente) * 0.10
 
         return {
             "orientacion_cuadro": orientacion_cuadro,
@@ -836,9 +849,15 @@ class PoseTracker:
             "caderas_visibles": caderas_visibles,
             "u_hip": u_hip,
             "giro": giro,
+            # De perfil: el brazo que queda del lado de la cámara (Z más chico) y el
+            # ancho de hombros que tiene la persona vista de frente
+            "lado_cercano": "l" if z_sh_l <= z_sh_r else "r",
+            "ancho_hombros_frente": float(self.relacion_frente * dist_torso),
             "brazo_arriba_l": brazo_arriba_l,
             "brazo_arriba_r": brazo_arriba_r,
             "medio_cuello": medio_cuello,
+            "medio_cara": medio_cara,
+            "p_menton": p_menton,
             "p_boca": p_boca,
             "nose": pts["nose"],
         }

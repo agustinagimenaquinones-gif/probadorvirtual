@@ -142,6 +142,149 @@ def crear_persona_sintetica(figura, ancho=1280, alto=720, cx=640, cy=200,
     return frame, mask.astype(np.float32) / 255.0, lms, puntos
 
 
+def persona_cerca_con_brazos_arriba(ancho_hombros=220.0, color_piel=(150, 175, 215)):
+    """
+    Persona cerca de la cámara con los brazos levantados: la cara se ve grande y los
+    hombros (como los marca MediaPipe) suben hacia el mentón. Incluye orejas y boca.
+    Devuelve (frame, mascara, puntos); la Z queda en crear_persona_sintetica.ultima_z y
+    la parte de abajo de la cara (para medir si la tapa algo) en .cara.
+    """
+    d = float(ancho_hombros)
+    cx, cy = 640, 260
+    frame, mascara, _, puntos = crear_persona_sintetica("rectangulo", ancho_hombros=d, cy=cy,
+                                                        angulo_brazos_deg=150.0, color_piel=color_piel)
+    centro = (cx, int(cy - d * 0.45))
+    ejes = (int(d * 0.34), int(d * 0.40))
+    m = (mascara * 255).astype(np.uint8)
+    cv2.ellipse(m, centro, ejes, 0, 0, 360, 255, -1)
+    frame = frame.copy()
+    cara_color = tuple(int(c * 1.04) for c in color_piel)   # la cara, un poco distinta del cuello
+    cv2.ellipse(frame, centro, ejes, 0, 0, 360, cara_color, -1)
+    nariz = np.array([cx, cy - d * 0.45], np.float32)
+    puntos = dict(puntos)
+    puntos["nose"] = nariz
+    puntos["ear_left"] = nariz + np.float32([d * 0.34, -d * 0.02])
+    puntos["ear_right"] = nariz + np.float32([-d * 0.34, -d * 0.02])
+    puntos["mouth_left"] = nariz + np.float32([d * 0.08, d * 0.17])
+    puntos["mouth_right"] = nariz + np.float32([-d * 0.08, d * 0.17])
+    for k in ("sh_left", "sh_right"):          # los hombros suben con los brazos
+        puntos[k] = puntos[k] + np.float32([0, -d * 0.16])
+    # Parte de abajo de la cara: de la boca al mentón
+    zona = np.zeros(m.shape, np.uint8)
+    cv2.ellipse(zona, centro, (ejes[0] - 3, ejes[1] - 3), 0, 0, 360, 255, -1)
+    zona[: int(nariz[1] + d * 0.12)] = 0
+    persona_cerca_con_brazos_arriba.cara = zona > 0
+    # Alrededor del mentón (donde va el cuello de la prenda): una franja debajo de la cara
+    # y a sus costados, entre los hombros
+    alrededor = np.zeros(m.shape, np.uint8)
+    menton_y = int(centro[1] + ejes[1])
+    cv2.rectangle(alrededor, (int(cx - d * 0.40), menton_y - int(d * 0.06)),
+                  (int(cx + d * 0.40), menton_y + int(d * 0.08)), 255, -1)
+    cv2.ellipse(alrededor, centro, (ejes[0] + 2, ejes[1] + 2), 0, 0, 360, 0, -1)
+    persona_cerca_con_brazos_arriba.alrededor_del_menton = alrededor > 0
+    return frame, m.astype(np.float32) / 255.0, puntos
+
+
+def cruzar_brazos(frame, mascara, puntos, z, color_piel, largo_torso=280, altura_codos=0.42):
+    """
+    Agrega a una persona sintética de frente los brazos cruzados delante del torso: los
+    codos a los costados y las muñecas cruzadas, más cerca de la cámara que los hombros.
+    Devuelve (frame, mascara, puntos, z) nuevos y los segmentos de los antebrazos.
+    """
+    sh_izq, sh_der = puntos["sh_right"], puntos["sh_left"]   # izquierda y derecha de pantalla
+    d = float(np.linalg.norm(sh_der - sh_izq))
+    L = float(largo_torso)
+    codo_izq = sh_izq + np.float32([d * 0.05, L * altura_codos])
+    codo_der = sh_der + np.float32([-d * 0.05, L * altura_codos])
+    muneca_izq = codo_der + np.float32([-d * 0.10, -L * 0.08])   # el antebrazo izquierdo cruza a la derecha
+    muneca_der = codo_izq + np.float32([d * 0.10, -L * 0.14])
+    p = dict(puntos)
+    p.update({"elb_right": codo_izq, "wri_right": muneca_izq, "elb_left": codo_der, "wri_left": muneca_der})
+    zz = dict(z)
+    zz.update({"wri_left": -0.95, "wri_right": -0.95, "elb_left": -0.6, "elb_right": -0.6})
+    frame = frame.copy()
+    m = (mascara * 255).astype(np.uint8)
+    grosor = int(d * 0.22)
+    for a, b in ((sh_izq, codo_izq), (codo_izq, muneca_izq), (sh_der, codo_der), (codo_der, muneca_der)):
+        cv2.line(frame, tuple(np.int32(a)), tuple(np.int32(b)), tuple(int(c) for c in color_piel), grosor)
+        cv2.line(m, tuple(np.int32(a)), tuple(np.int32(b)), 255, grosor)
+    return frame, m.astype(np.float32) / 255.0, p, zz, [(codo_izq, muneca_izq), (codo_der, muneca_der)]
+
+
+def crear_persona_de_perfil(ancho=1280, alto=720, cx=640, cy=200, largo_torso=280,
+                            mira_a_la_derecha=True, angulo_brazo_deg=8.0, color_piel=(150, 175, 215)):
+    """
+    Devuelve (frame_bgr, mascara_float, landmarks, puntos) de una persona sintética de
+    PERFIL: los hombros casi se superponen, el pecho sobresale hacia donde mira y el
+    brazo del lado de la cámara cuelga sobre el torso. La Z queda en .ultima_z.
+    angulo_brazo_deg: 0 = brazo colgando, > 0 = hacia adelante.
+    """
+    L = float(largo_torso)
+    adelante = 1.0 if mira_a_la_derecha else -1.0
+    p_neck = np.array([cx, cy], dtype=np.float32)
+    # Hombros: casi en el mismo lugar (el de atrás un poco corrido y más lejos)
+    p_sh_cerca = p_neck + np.array([adelante * L * 0.02, 0], dtype=np.float32)
+    p_sh_lejos = p_neck - np.array([adelante * L * 0.05, 0], dtype=np.float32)
+    p_hip_cerca = p_neck + np.array([adelante * L * 0.01, L], dtype=np.float32)
+    p_hip_lejos = p_neck + np.array([-adelante * L * 0.03, L], dtype=np.float32)
+
+    # Brazo del lado de la cámara: colgando sobre el costado del torso
+    a = math.radians(angulo_brazo_deg)
+    direccion = np.array([adelante * math.sin(a), math.cos(a)], dtype=np.float32)
+    largo_brazo = L * 0.56
+    p_elb = p_sh_cerca + direccion * largo_brazo
+    p_wri = p_elb + direccion * largo_brazo * 0.95
+
+    # Silueta de costado: espalda (detrás) y pecho / panza (adelante), por niveles
+    niveles = [(-0.06, 0.10, 0.12), (0.0, 0.20, 0.22), (0.25, 0.22, 0.30), (0.45, 0.20, 0.26),
+               (0.65, 0.20, 0.22), (1.00, 0.24, 0.22), (1.40, 0.20, 0.20)]
+    frente_pts, espalda_pts = [], []
+    for t, atras, adel in niveles:
+        y = cy + t * L
+        frente_pts.append((cx + adelante * adel * L, y))
+        espalda_pts.append((cx - adelante * atras * L, y))
+    poly = np.array(frente_pts + espalda_pts[::-1], dtype=np.int32)
+    mask = np.zeros((alto, ancho), dtype=np.uint8)
+    cv2.fillPoly(mask, [poly], 255)
+    # Cuello y cabeza (la cara mira hacia adelante)
+    cv2.rectangle(mask, (int(cx - L * 0.07), int(cy - L * 0.25)), (int(cx + L * 0.07), int(cy + 5)), 255, -1)
+    p_nariz = np.array([cx + adelante * L * 0.17, cy - L * 0.40], dtype=np.float32)
+    cv2.ellipse(mask, (cx + int(adelante * L * 0.04), int(cy - L * 0.40)), (int(L * 0.15), int(L * 0.19)),
+                0, 0, 360, 255, -1)
+    grosor = max(4, int(L * 0.13))
+    for a_, b_ in [(p_sh_cerca, p_elb), (p_elb, p_wri)]:
+        cv2.line(mask, tuple(np.int32(a_)), tuple(np.int32(b_)), 255, grosor)
+    mask = cv2.GaussianBlur(mask, (5, 5), 0)
+
+    frame = np.full((alto, ancho, 3), (236, 236, 240), dtype=np.uint8)
+    m3 = (mask.astype(np.float32) / 255.0)[:, :, None]
+    frame = (frame * (1 - m3) + np.full_like(frame, color_piel) * m3).astype(np.uint8)
+    # El brazo un poco más oscuro que el torso (como en la cámara), para verlo en las imágenes
+    brazo = np.zeros((alto, ancho), dtype=np.uint8)
+    for a_, b_ in [(p_sh_cerca, p_elb), (p_elb, p_wri)]:
+        cv2.line(brazo, tuple(np.int32(a_)), tuple(np.int32(b_)), 255, grosor - 4)
+    frame[brazo > 0] = (frame[brazo > 0].astype(np.float32) * 0.86).astype(np.uint8)
+
+    # "sh_left" es el hombro del lado de la cámara y "sh_right" el de atrás: para la vista
+    # de costado lo que importa es cuál está más cerca (Z más chico).
+    puntos = {
+        "nose": p_nariz,
+        "sh_left": p_sh_cerca, "sh_right": p_sh_lejos,
+        "elb_left": p_elb, "elb_right": p_sh_lejos + np.array([0, largo_brazo], dtype=np.float32),
+        "wri_left": p_wri, "wri_right": p_sh_lejos + np.array([0, largo_brazo * 1.95], dtype=np.float32),
+        "hip_left": p_hip_cerca, "hip_right": p_hip_lejos,
+    }
+    z = {k: 0.0 for k in puntos}
+    z.update({"sh_left": -0.45, "sh_right": -0.15, "elb_left": -0.45, "elb_right": -0.10,
+              "wri_left": -0.45, "wri_right": -0.10, "hip_left": -0.10, "hip_right": 0.10})
+    lms = [_LM(*p_nariz, -0.5, ancho, alto)] * 33
+    for indice, clave in ((11, "sh_left"), (12, "sh_right"), (13, "elb_left"), (14, "elb_right"),
+                          (15, "wri_left"), (16, "wri_right"), (23, "hip_left"), (24, "hip_right")):
+        lms[indice] = _LM(*puntos[clave], z[clave], ancho, alto)
+    crear_persona_de_perfil.ultima_z = z
+    return frame, mask.astype(np.float32) / 255.0, lms, puntos
+
+
 def poner_de_espaldas(puntos, z=None):
     """
     Convierte los puntos de una persona de frente en los de una persona DE ESPALDAS:

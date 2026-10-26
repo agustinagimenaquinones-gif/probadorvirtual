@@ -22,6 +22,7 @@ from recursos import obtener_siguiente_nombre_captura
 from colores_prenda import CacheColores
 from diseno_rigido import pegar_bloques
 from profundidad_3d import envolver_en_torso
+from vista_costado import generar_vista_costado
 from inercia_tela import InerciaTela
 from luz_escena import EstimadorLuz
 from config import (
@@ -243,17 +244,29 @@ ARCHIVO_DIAGNOSTICO = os.path.join("temp", "diagnostico_pose.csv")
 def registrar_diagnostico(prenda, info, deteccion):
     """Agrega una línea con los puntos del cuerpo (sólo coordenadas, nunca imágenes)."""
     os.makedirs("temp", exist_ok=True)
-    nuevo = not os.path.exists(ARCHIVO_DIAGNOSTICO)
     claves = ("nose", "sh_left", "sh_right", "hip_left", "hip_right")
+    encabezado = ("hora,prenda,mangas,orientacion,giro,caderas_visibles,angulo_torso,dist_sh,dist_torso,"
+                  "cuello_base_y,medio_cuello,base_cuello,menton_y,medio_cara,"
+                  + ",".join(f"{k}_x,{k}_y,{k}_vis" for k in claves) + "\n")
+    if os.path.exists(ARCHIVO_DIAGNOSTICO):
+        with open(ARCHIVO_DIAGNOSTICO, encoding="utf-8") as archivo:
+            anterior = archivo.readline() != encabezado
+        if anterior:   # registro de una versión anterior (otras columnas): se aparta
+            os.replace(ARCHIVO_DIAGNOSTICO, ARCHIVO_DIAGNOSTICO + ".anterior")
+    nuevo = not os.path.exists(ARCHIVO_DIAGNOSTICO)
     with open(ARCHIVO_DIAGNOSTICO, "a", encoding="utf-8") as archivo:
         if nuevo:
-            archivo.write("hora,prenda,mangas,orientacion,giro,caderas_visibles,angulo_torso,dist_sh,dist_torso,"
-                          + ",".join(f"{k}_x,{k}_y,{k}_vis" for k in claves) + "\n")
+            archivo.write(encabezado)
         u = info["u_torso"]
         fila = [time.strftime("%H:%M:%S"), prenda["id"], str(prenda.get("tiene_mangas")), info.get("orientacion", ""),
                 f"{info.get('giro', 0):.2f}", str(info.get("caderas_visibles")),
                 f"{math.degrees(math.atan2(float(u[0]), float(u[1]))):.1f}", f"{info['dist_sh']:.0f}",
                 f"{info['dist_torso']:.0f}"]
+        def numero(v):
+            return "" if v is None else f"{float(v):.0f}"
+        fila += [numero(info["p_neck_base"][1]), numero(info.get("medio_cuello")), numero(info.get("base_cuello")),
+                 numero(info["p_menton"][1] if info.get("p_menton") is not None else None),
+                 numero(info.get("medio_cara"))]
         for k in claves:
             p = deteccion["p_raw"].get(k) if deteccion else None
             v = deteccion["vis"].get(k, 0.0) if deteccion else 0.0
@@ -310,7 +323,7 @@ def ejecutar_probador_camara(prenda_inicial, catalogo, talle_elegido="M", color_
     ver_medidas = False
     diagnostico = False      # tecla I: puntos del cuerpo y registro para encontrar errores
     ultimo_registro = 0.0
-    opacidad_prenda = 1.0          # baja a 0 suavemente cuando la persona está de perfil
+    opacidad_prenda = 1.0          # baja a 0 suavemente cuando la persona está de perfil (y sube la de costado)
     orientacion_anterior = "frente"
     recorte_silueta = True   # prenda pegada a la silueta: escáner + recorte (tecla R)
     memoria_ajuste = {}      # suavizado del escáner entre cuadros
@@ -383,7 +396,7 @@ def ejecutar_probador_camara(prenda_inicial, catalogo, talle_elegido="M", color_
                 tiene_mangas = prenda_actual.get("tiene_mangas", True)
 
                 # Hacia dónde mira la persona: de espaldas se usa la vista de espalda;
-                # de perfil la prenda se desvanece (no hay foto de costado).
+                # de perfil, la vista de frente se funde con la de costado.
                 orientacion = info_anatomica.get("orientacion", "frente")
                 de_espaldas = orientacion == "espalda"
                 imagen_prenda = prenda_actual.get("imagen_espalda_cv") if de_espaldas else None
@@ -408,7 +421,7 @@ def ejecutar_probador_camara(prenda_inicial, catalogo, talle_elegido="M", color_
                 opacidad_prenda += (objetivo - opacidad_prenda) * (0.45 if de_perfil else 0.25)
                 if orientacion != orientacion_anterior:
                     if orientacion == "perfil":
-                        notificacion_texto = "Gira un poco hacia la camara para ver la prenda"
+                        notificacion_texto = "Vista de costado"
                     elif de_espaldas and prenda_actual.get("espalda_automatica", True):
                         notificacion_texto = "Vista de espalda (automatica: sin foto de espalda)"
                     elif de_espaldas:
@@ -417,8 +430,6 @@ def ejecutar_probador_camara(prenda_inicial, catalogo, talle_elegido="M", color_
                         notificacion_texto = "Vista de frente"
                     notificacion_tiempo = time.time()
                     orientacion_anterior = orientacion
-                if orientacion == "perfil":
-                    notificacion_tiempo = time.time()  # el aviso queda mientras siga de perfil
 
                 # Calcular puntos destino adaptados al cuerpo del usuario
                 # Calcular puntos destino adaptados a la figura medida del usuario,
@@ -477,6 +488,23 @@ def ejecutar_probador_camara(prenda_inicial, catalogo, talle_elegido="M", color_
                         talle=talle, recortar_silueta=recorte_silueta, sombras=True,
                         cuello_por_delante=tiene_mangas and not de_espaldas
                     )
+                # Vista de costado: aparece a medida que se va la de frente. La tela sale
+                # de la espalda de la prenda (de costado no se ven logos ni botones).
+                if opacidad_prenda < 0.98 and not de_espaldas and info_anatomica.get("mascara") is not None:
+                    imagen_costado = prenda_actual.get("imagen_espalda_cv")
+                    puntos_costado = prenda_actual.get("src_puntos_espalda")
+                    if imagen_costado is None or puntos_costado is None:
+                        imagen_costado, puntos_costado = prenda_actual["imagen_cv"], prenda_actual["src_puntos"]
+                    if not color_actual.get("es_foto") and color_actual.get("hex"):
+                        imagen_costado = cache_colores.obtener(prenda_actual["id"], imagen_costado, color_actual["hex"])
+                    costado = generar_vista_costado(imagen_costado, puntos_costado, tiene_mangas, info_anatomica,
+                                                    info_anatomica["mascara"], holgura_talle=holgura_de_talle(talle))
+                    if costado is not None:
+                        parche_c, x0_c, y0_c, x1_c, y1_c = costado
+                        parche_c[:, :, 3] = (parche_c[:, :, 3].astype(np.float32) * (1.0 - opacidad_prenda)).astype(np.uint8)
+                        frame = componer_prenda_con_capas(
+                            frame, parche_c, x0_c, y0_c, x1_c, y1_c, info_anatomica,
+                            talle=talle, recortar_silueta=False, sombras=True)
             else:
                 # =========================================================
                 # MODO 2 (DEPURACIÓN / COMPARACIÓN): CUADRILÁTERO CLÁSICO
