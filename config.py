@@ -20,6 +20,11 @@ MEDIAPIPE_EN_SEGUNDO_PLANO = True
 # -------------------------------------------------------------------------
 MODEL_FILENAME = "pose_landmarker_lite.task"
 MODEL_URL = "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/latest/pose_landmarker_lite.task"
+# Segmentador de pelo de MediaPipe: el pelo largo queda por DELANTE de la prenda
+# (y el pelo rubio no se confunde con el cuello). False lo apaga si la compu va lenta.
+USAR_PELO_DELANTE = True
+MODELO_PELO = "hair_segmenter.tflite"
+MODELO_PELO_URL = "https://storage.googleapis.com/mediapipe-models/image_segmenter/hair_segmenter/float32/latest/hair_segmenter.tflite"
 CARPETA_PRENDAS = "prendas"
 CARPETA_CAPTURAS = "capturas"
 

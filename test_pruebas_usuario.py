@@ -18,6 +18,7 @@ from pose_tracker import PoseTracker
 from clothing_geometry import detectar_puntos_clave_prenda, TRIANGULOS_ESTRUCTURADOS
 from clothing_warper import deformar_malla_prenda
 from body_layering import componer_prenda_con_capas
+from segmentador_pelo import SegmentadorPelo
 from vista_costado import generar_vista_costado
 from catalogo import cargar_catalogo_completo, holgura_de_talle
 from body_measure import ancho_total
@@ -911,8 +912,49 @@ def ejecutar_todas_las_pruebas():
     print(f"  Cara tapada por la prenda: {tapada:.1%} | prenda alrededor del mentón: {con_prenda:.0%}")
     print("  [OK] Prueba 27 superada: con los brazos arriba, la cara queda libre.")
 
+    # =============================================================
+    # PRUEBA 28: PELO LARGO POR DELANTE DE LA PRENDA
+    # =============================================================
+    print("\n[PRUEBA 28] Pelo largo sobre el hombro: queda por delante de la prenda...")
+    tr_p = PoseTracker()
+    tr_p.detector.close()
+    fr_p, ms_p, _, pts_p = sp.crear_persona_sintetica("reloj_de_arena")
+    inf_p = tr_p._calcular_geometria_corporal(pts_p, dict(sp.crear_persona_sintetica.ultima_z),
+                                             {k: 0.99 for k in pts_p}, ancho, alto)
+    tr_p.agregar_medidas(inf_p, ms_p)
+    inf_p["mascara"] = ms_p
+    dd_p = tr_p.calcular_puntos_destino_malla(inf_p, polo["tiene_mangas"], holgura_talle=holgura_de_talle("M"),
+                                              puntos_prenda=polo["src_puntos"])
+    pa_p, a1p, b1p, a2p, b2p = deformar_malla_prenda(polo["imagen_cv"], polo["src_puntos"], dd_p, ancho, alto, True)
+    # Un mechón (como lo marcaría el segmentador de pelo) que cae sobre el pecho, del lado izquierdo
+    d_p = float(inf_p["dist_sh"])
+    cuello_p = inf_p["p_neck_base"]
+    mx0, my0 = int(cuello_p[0] - d_p * 0.40), int(cuello_p[1] - d_p * 0.30)
+    mechon = np.full((int(d_p * 0.75), int(d_p * 0.16)), 255, np.uint8)
+    # El segmentador corre en otro hilo: su máscara se corre con el cuello hasta la próxima detección
+    seg_p = SegmentadorPelo(model_path="no_existe.tflite")
+    seg_p._resultado = (mx0 - 6, my0 - 4, mechon, np.float32(cuello_p) - np.float32([6, 4]))
+    inf_p["pelo"] = seg_p.mascara(inf_p)
+    assert inf_p["pelo"][:2] == (mx0, my0), f"La máscara del pelo no siguió al cuello: {inf_p['pelo'][:2]}"
+    sin_pelo = componer_prenda_con_capas(fr_p, pa_p, a1p, b1p, a2p, b2p, dict(inf_p, pelo=None), talle="M",
+                                         cuello_por_delante=True)
+    con_pelo = componer_prenda_con_capas(fr_p, pa_p, a1p, b1p, a2p, b2p, inf_p, talle="M", cuello_por_delante=True)
+    # Centro del mechón, sólo donde había prenda puesta
+    zona_p = (slice(my0 + 6, my0 + mechon.shape[0] - 6), slice(mx0 + 6, mx0 + mechon.shape[1] - 6))
+    habia_prenda = np.abs(sin_pelo[zona_p].astype(int) - fr_p[zona_p].astype(int)).max(axis=2) > 30
+    assert habia_prenda.mean() > 0.3, "La prenda no llegaba a la zona del mechón (la prueba no sirve)"
+    pelo_visible = np.abs(con_pelo[zona_p].astype(int) - fr_p[zona_p].astype(int)).max(axis=2)[habia_prenda] < 30
+    # Del otro lado (sin pelo) la prenda sigue igual
+    espejo = (zona_p[0], slice(int(2 * cuello_p[0]) - zona_p[1].stop, int(2 * cuello_p[0]) - zona_p[1].start))
+    igual_otro_lado = float(np.mean(np.abs(con_pelo[espejo].astype(int) - sin_pelo[espejo].astype(int)) < 3))
+    tr_p.cerrar()
+    assert pelo_visible.mean() > 0.9, f"La prenda tapa el pelo ({pelo_visible.mean():.0%} visible)"
+    assert igual_otro_lado > 0.99, "La prenda cambió del lado donde no hay pelo"
+    print(f"  Pelo visible sobre la prenda: {pelo_visible.mean():.0%} | otro lado sin cambios: {igual_otro_lado:.0%}")
+    print("  [OK] Prueba 28 superada: el pelo largo se ve por delante de la prenda.")
+
     print("\n" + "=" * 65)
-    print("   [OK] TODAS LAS 27 PRUEBAS DEL SISTEMA FUERON SUPERADAS CON EXITO")
+    print("   [OK] TODAS LAS 28 PRUEBAS DEL SISTEMA FUERON SUPERADAS CON EXITO")
     print("=" * 65)
 
 if __name__ == "__main__":

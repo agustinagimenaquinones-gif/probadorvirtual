@@ -6,6 +6,8 @@
 import numpy as np
 import cv2
 
+from segmentador_pelo import recortar_a
+
 # Margen (en píxeles, para un ancho de hombros de 220 px) que la prenda puede
 # sobresalir del borde del cuerpo según el talle. Las mangas tienen el doble.
 MARGEN_SILUETA_TALLE = {"XS": 1, "S": 2, "M": 4, "L": 7, "XL": 10, "XXL": 13}
@@ -216,10 +218,11 @@ def sombreado_volumen(parche_rgba, dist_sh, intensidad=INTENSIDAD_VOLUMEN, solo_
     return resultado
 
 
-def sombra_de_contacto(roi_fondo, parche_alfa, dist_sh, intensidad=INTENSIDAD_SOMBRA_CONTACTO):
+def sombra_de_contacto(roi_fondo, parche_alfa, dist_sh, intensidad=INTENSIDAD_SOMBRA_CONTACTO, delante=None):
     """
     Oscurece un poco el cuerpo justo debajo de los bordes de la tela (la luz viene de
     arriba): así la prenda parece apoyada sobre el cuerpo y no pegada encima.
+    delante: lo que está por delante de la prenda (el pelo), que no recibe su sombra.
     Modifica roi_fondo en el lugar.
     """
     if intensidad <= 0:
@@ -232,6 +235,8 @@ def sombra_de_contacto(roi_fondo, parche_alfa, dist_sh, intensidad=INTENSIDAD_SO
     mitad = cv2.resize(desplazada, (max(2, ancho_p // 2), max(2, alto_p // 2)), interpolation=cv2.INTER_AREA)
     difusa = cv2.resize(cv2.GaussianBlur(mitad, (0, 0), sigma), (ancho_p, alto_p), interpolation=cv2.INTER_LINEAR)
     sombra = difusa * (1.0 - parche_alfa) * intensidad
+    if delante is not None:
+        sombra *= 1.0 - delante
     # Sólo se tocan los píxeles con sombra (una franja angosta bajo los bordes)
     donde = sombra > 0.01
     if np.any(donde):
@@ -292,6 +297,38 @@ def ocultar_detras_del_cuello(parche_alfa, xmin, ymin, info_anatomica):
     borde_u = base - hondo * np.sqrt(np.clip(1.0 - (lateral / medio) ** 2, 0.0, 1.0))
     dentro = np.clip((medio - lateral) / suave, 0.0, 1.0) * np.clip((arriba - borde_u) / suave, 0.0, 1.0)
     parche_alfa[0:y1, x0:x1] *= 1.0 - dentro
+
+
+def poner_pelo_delante(parche_alfa, xmin, ymin, info_anatomica):
+    """
+    El pelo largo cae por delante de la ropa: donde el segmentador de pelo ve pelo
+    (sobre la persona), la prenda se borra con un borde suave y el pelo queda adelante.
+    Modifica parche_alfa en el lugar y devuelve cuánto pelo hay delante en cada píxel
+    (0 a 1), o None si no hay.
+    """
+    pelo = info_anatomica.get("pelo")
+    if pelo is None:
+        return None
+    alto_p, ancho_p = parche_alfa.shape
+    zona = recortar_a(pelo, xmin, ymin, ancho_p, alto_p)
+    if not zona.any():
+        return None
+    mascara = info_anatomica.get("mascara")
+    if mascara is not None:
+        # Sólo el pelo sobre la persona o junto a ella (no manchas sueltas en el fondo).
+        # El margen cubre la tela que sobresale un poco de la silueta en los hombros.
+        persona = np.zeros((alto_p, ancho_p), np.uint8)
+        y0, x0 = max(0, ymin), max(0, xmin)
+        y1, x1 = min(mascara.shape[0], ymin + alto_p), min(mascara.shape[1], xmin + ancho_p)
+        if y1 > y0 and x1 > x0:
+            persona[y0 - ymin:y1 - ymin, x0 - xmin:x1 - xmin] = mascara[y0:y1, x0:x1] > 0.5
+        margen = 2 * int(max(2, float(info_anatomica.get("dist_sh", 200.0)) * 0.08)) + 1
+        persona = cv2.dilate(persona, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (margen, margen)))
+        zona = zona * persona
+    # Seguro pelo desde ~0.65 de confianza; entre 0.40 y 0.65 se mezcla (mechones finos)
+    delante = np.clip((cv2.GaussianBlur(zona, (5, 5), 0).astype(np.float32) / 255.0 - 0.40) / 0.25, 0.0, 1.0)
+    parche_alfa *= 1.0 - delante
+    return delante
 
 
 def componer_prenda_con_capas(frame_bgr, parche_rgba, xmin, ymin, xmax, ymax, info_anatomica,
@@ -367,12 +404,13 @@ def componer_prenda_con_capas(frame_bgr, parche_rgba, xmin, ymin, xmax, ymax, in
             ocultar_cara(parche_alfa, xmin, ymin, p_nose, info_anatomica["p_menton"], info_anatomica["medio_cara"])
     if cuello_por_delante and info_anatomica and "p_neck_base" in info_anatomica:
         ocultar_detras_del_cuello(parche_alfa, xmin, ymin, info_anatomica)
+    pelo_delante = poner_pelo_delante(parche_alfa, xmin, ymin, info_anatomica) if info_anatomica else None
 
     # 3. Fusión Alfa de la prenda sobre el cuerpo
     # (sobre todo el recuadro de una vez: más rápido que seleccionar píxel por píxel)
     mask_valida = parche_alfa > 0.02
     if sombras and info_anatomica and np.any(mask_valida):
-        sombra_de_contacto(roi_fondo, parche_alfa, float(info_anatomica.get("dist_sh", 200.0)))
+        sombra_de_contacto(roi_fondo, parche_alfa, float(info_anatomica.get("dist_sh", 200.0)), delante=pelo_delante)
     if np.any(mask_valida):
         # Mezcla ponderada con OpenCV (mucho más rápida que la cuenta en NumPy)
         alfa32 = np.ascontiguousarray(parche_alfa, dtype=np.float32)

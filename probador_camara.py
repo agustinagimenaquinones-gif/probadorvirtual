@@ -25,6 +25,7 @@ from profundidad_3d import envolver_en_torso
 from vista_costado import generar_vista_costado
 from inercia_tela import InerciaTela
 from luz_escena import EstimadorLuz
+from segmentador_pelo import SegmentadorPelo
 from config import (
     ANCHO_PROCESO,
     ANCHO_PANTALLA,
@@ -32,6 +33,8 @@ from config import (
     CADA_N_CUADROS_MEDIAPIPE,
     MEDIAPIPE_EN_SEGUNDO_PLANO,
     MODEL_FILENAME,
+    USAR_PELO_DELANTE,
+    MODELO_PELO,
     FACTOR_ANCHO_DEFAULT,
     FACTOR_AJUSTE_PASO,
     SMOOTH_ANTERIOR,
@@ -293,6 +296,8 @@ def ejecutar_probador_camara(prenda_inicial, catalogo, talle_elegido="M", color_
     tracker = PoseTracker(model_path=MODEL_FILENAME, alpha_suavizado=SMOOTH_DETECTADO,
                           ancho_mediapipe=ANCHO_MEDIAPIPE, cada_n_cuadros=CADA_N_CUADROS_MEDIAPIPE,
                           en_segundo_plano=MEDIAPIPE_EN_SEGUNDO_PLANO)
+    # Pelo por delante de la prenda (corre en su propio hilo)
+    segmentador_pelo = SegmentadorPelo(MODELO_PELO) if USAR_PELO_DELANTE else None
 
     # Abrir cámara web
     cap = abrir_camara()
@@ -304,6 +309,8 @@ def ejecutar_probador_camara(prenda_inicial, catalogo, talle_elegido="M", color_
         messagebox.showerror("Error de Cámara", "No se pudo acceder a la cámara web. Puede estar en uso por otra app "
                                                 "(una videollamada u otra copia del probador). Cerrala y volvé a intentar.")
         tracker.cerrar()
+        if segmentador_pelo is not None:
+            segmentador_pelo.cerrar()
         return prenda_inicial, color_elegido
 
     # Índice de la prenda actual dentro del catálogo
@@ -378,6 +385,10 @@ def ejecutar_probador_camara(prenda_inicial, catalogo, talle_elegido="M", color_
 
         # 2. Detección y seguimiento corporal inteligente
         landmarks, info_anatomica = tracker.procesar_frame(frame)
+        if segmentador_pelo is not None and info_anatomica is not None:
+            segmentador_pelo.pedir(frame, info_anatomica)
+            info_anatomica["pelo"] = segmentador_pelo.mascara(info_anatomica)
+            tracker.mascara_pelo = info_anatomica["pelo"]  # para medir el cuello sin el pelo
 
         # Cuadro limpio para capturas (sin los textos del HUD)
         frame_limpio_con_prenda = frame.copy()
@@ -678,6 +689,8 @@ def ejecutar_probador_camara(prenda_inicial, catalogo, talle_elegido="M", color_
 
     # Limpieza de recursos
     tracker.cerrar()
+    if segmentador_pelo is not None:
+        segmentador_pelo.cerrar()
     cap.release()
     cv2.destroyAllWindows()
     cv2.waitKey(1)

@@ -620,6 +620,16 @@ class PoseTracker:
                     dif = lab[ys - y0, xs - x0] - referencia
                     return np.sqrt((dif[..., 0] * 0.5) ** 2 + dif[..., 1] ** 2 + dif[..., 2] ** 2) < 22
                 piel_lados = [parecido(l[1], l[2]) for l in lados]
+                # El pelo (sobre todo el rubio) puede tener el color de la piel: lo que el
+                # segmentador de pelo marca como pelo nunca cuenta como cuello
+                pelo = getattr(self, "mascara_pelo", None)
+                if pelo is not None:
+                    px, py, m = pelo
+                    for k, (_, xs, ys) in enumerate(lados):
+                        dentro_m = (xs >= px) & (xs < px + m.shape[1]) & (ys >= py) & (ys < py + m.shape[0])
+                        es_pelo = np.zeros_like(dentro_m)
+                        es_pelo[dentro_m] = m[ys[dentro_m] - py, xs[dentro_m] - px] > 128
+                        piel_lados[k] = piel_lados[k] & ~es_pelo
                 # Sólo si el centro es parejo (si no: bufanda, collar, estampado al cuello)
                 usar_piel = float(np.mean(piel_lados[0][:, 0][cuerpo_c[:, 0]])) > 0.6
 

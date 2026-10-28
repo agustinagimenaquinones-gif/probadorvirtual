@@ -17,6 +17,9 @@ from crear_prendas import (
 from config import (
     MODEL_FILENAME,
     MODEL_URL,
+    USAR_PELO_DELANTE,
+    MODELO_PELO,
+    MODELO_PELO_URL,
     CARPETA_PRENDAS,
     CARPETA_CAPTURAS,
 )
@@ -35,6 +38,14 @@ def asegurar_recursos():
         except Exception as e:
             print(f"[ERROR] No se pudo descargar el modelo: {e}")
             sys.exit(1)
+
+    if USAR_PELO_DELANTE and not os.path.exists(MODELO_PELO):
+        print("[+] Descargando modelo de pelo de MediaPipe...")
+        try:
+            urllib.request.urlretrieve(MODELO_PELO_URL, MODELO_PELO)
+        except Exception as e:
+            # Sin este modelo el probador funciona igual (sólo el pelo no queda delante)
+            print(f"[AVISO] No se pudo descargar el modelo de pelo: {e}")
 
     os.makedirs(CARPETA_PRENDAS, exist_ok=True)
     os.makedirs(CARPETA_CAPTURAS, exist_ok=True)
