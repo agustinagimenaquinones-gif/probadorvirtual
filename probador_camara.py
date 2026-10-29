@@ -17,7 +17,8 @@ from clothing_warper import deformar_malla_prenda
 from body_layering import componer_prenda_con_capas
 from catalogo import holgura_de_talle, talle_inicial, obtener_medidas_talle
 from ajuste_silueta import ajustar_prenda_completa
-from hud import dibujar_medidas, dibujar_hud_probador, punto_en_boton_galeria, dibujar_diagnostico
+from hud import (dibujar_medidas, dibujar_hud_probador, punto_en_boton_galeria, punto_en_boton_comprar,
+                 dibujar_diagnostico)
 from recursos import obtener_siguiente_nombre_captura
 from colores_prenda import CacheColores
 from diseno_rigido import pegar_bloques
@@ -281,10 +282,45 @@ def colores_prenda(prenda):
     return prenda.get("colores") or [{"nombre": prenda.get("color", ""), "hex": None, "es_foto": True}]
 
 
-def ejecutar_probador_camara(prenda_inicial, catalogo, talle_elegido="M", color_elegido=None):
+def comprar_desde_camara(prenda, color, talle, segundos, sesion):
+    """
+    Compra simulada de la prenda que la persona se está probando: guarda la prueba
+    y la compra (unidas) en MySQL y descuenta el stock. sesion: {"id_cliente",
+    "compras", "pruebas"} que comparte con la galería. Devuelve el texto para avisar.
+    """
+    if not prenda.get("id_prenda"):
+        return "Esta prenda no esta en la base de datos: no se puede comprar"
+    import tienda
+    id_cliente = sesion.get("id_cliente")
+    try:
+        id_prueba = tienda.registrar_prueba(prenda["id_prenda"], color, talle, segundos, id_cliente)
+        sesion.setdefault("pruebas", []).append((id_prueba, prenda["id_prenda"]))
+        r = tienda.comprar([{"id_prenda": prenda["id_prenda"], "color": color, "talle": talle, "cantidad": 1}],
+                           id_cliente, id_prueba=id_prueba)
+    except tienda.ErrorTienda as error:
+        return f"No se pudo comprar: {error}"
+    except Exception as error:
+        print(f"[Compra] No se pudo registrar en MySQL: {error}")
+        return "No se pudo registrar la compra (sin conexion con la base)"
+    sesion.setdefault("compras", []).append(r)
+    if r.get("cliente"):
+        sesion["cliente"] = r["cliente"]
+    try:
+        from conexion_mysql import leer_stock
+        prenda["stock"] = leer_stock(prenda["id_prenda"])
+    except Exception:
+        pass
+    total = f"${int(round(float(r['detalle']['total']))):,}".replace(",", ".")
+    print(f"[Compra] #{r['id_compra']}: {prenda['nombre']} ({color}, {talle}) por {total}")
+    return f"Compra #{r['id_compra']} registrada: {prenda['nombre']} {talle} por {total}"
+
+
+def ejecutar_probador_camara(prenda_inicial, catalogo, talle_elegido="M", color_elegido=None, sesion=None):
     """
     color_elegido: nombre del color con que se abre (los colores que no son el de la
     foto se generan tiñendo la prenda). Con [K] se cambia de color en vivo.
+    sesion: datos compartidos con la galería ({"id_cliente"}); con [B] o el botón
+    "Comprar" se registra una compra simulada y queda en sesion["compras"].
     Devuelve (prenda, color) con los que terminó la persona, para volver a su detalle.
     Ejecuta el bucle en vivo de la cámara con detección corporal y calce adaptativo.
     Al cerrar la cámara (G, Q, Esc, el botón "Volver a la galería" o la X de la
@@ -348,12 +384,18 @@ def ejecutar_probador_camara(prenda_inicial, catalogo, talle_elegido="M", color_
 
     # Mouse: botón "Volver a la galería" (OpenCV da las coordenadas en píxeles de la
     # imagen mostrada, aunque la ventana esté agrandada o achicada)
-    raton = {"x": -1, "y": -1, "click": False, "tam": (1, 1)}
+    raton = {"x": -1, "y": -1, "click": False, "comprar": False, "tam": (1, 1)}
+    if sesion is None:
+        sesion = {}
+    inicio_prenda = time.time()   # desde cuándo se prueba la prenda actual
+    ultima_compra = 0.0
 
     def al_usar_mouse(evento, x, y, _flags, _param):
         raton["x"], raton["y"] = x, y
         if evento == cv2.EVENT_LBUTTONUP and punto_en_boton_galeria(x, y, *raton["tam"]):
             raton["click"] = True
+        elif evento == cv2.EVENT_LBUTTONUP and punto_en_boton_comprar(x, y, *raton["tam"]):
+            raton["comprar"] = True
 
     cv2.setMouseCallback(nombre_ventana, al_usar_mouse)
 
@@ -576,7 +618,9 @@ def ejecutar_probador_camara(prenda_inicial, catalogo, talle_elegido="M", color_
                              fps=fps_suave, recorte=recorte_silueta,
                              orientacion=info_anatomica.get("orientacion") if info_anatomica else None,
                              boton_resaltado=punto_en_boton_galeria(raton["x"], raton["y"],
-                                                                    frame.shape[1], frame.shape[0]))
+                                                                    frame.shape[1], frame.shape[0]),
+                             comprar_resaltado=punto_en_boton_comprar(raton["x"], raton["y"],
+                                                                      frame.shape[1], frame.shape[0]))
         raton["tam"] = (frame.shape[1], frame.shape[0])
 
         cv2.imshow(nombre_ventana, frame)
@@ -595,6 +639,17 @@ def ejecutar_probador_camara(prenda_inicial, catalogo, talle_elegido="M", color_
         elif key == ord('q') or key == ord('Q') or key == 27:
             accion_salida = "galeria"
             break
+
+        # [B] o el botón "Comprar": compra simulada de la prenda, color y talle actuales
+        # (una sola por toque: si se aprieta dos veces seguidas no se compra dos veces)
+        elif key == ord('b') or key == ord('B') or raton["comprar"]:
+            raton["comprar"] = False
+            if time.time() - ultima_compra > 2.0:
+                ultima_compra = time.time()
+                color_compra = colores_prenda(prenda_actual)[indice_color % len(colores_prenda(prenda_actual))]["nombre"]
+                notificacion_texto = comprar_desde_camara(prenda_actual, color_compra, talle,
+                                                          time.time() - inicio_prenda, sesion)
+                notificacion_tiempo = time.time()
 
         # [C] Capturar foto y guardar en capturas/prueba_xxx.png
         elif key == ord('c') or key == ord('C') or key == 32:
@@ -651,6 +706,7 @@ def ejecutar_probador_camara(prenda_inicial, catalogo, talle_elegido="M", color_
             indice_prenda = (indice_prenda + 1) % len(catalogo)
             notificacion_texto = f"Prenda: {catalogo[indice_prenda]['nombre']}"
             notificacion_tiempo = time.time()
+            inicio_prenda = time.time()
             tracker.reiniciar()
             talle = talle_inicial(catalogo[indice_prenda], talle)
             indice_color = 0
@@ -662,6 +718,7 @@ def ejecutar_probador_camara(prenda_inicial, catalogo, talle_elegido="M", color_
             indice_prenda = (indice_prenda - 1) % len(catalogo)
             notificacion_texto = f"Prenda: {catalogo[indice_prenda]['nombre']}"
             notificacion_tiempo = time.time()
+            inicio_prenda = time.time()
             tracker.reiniciar()
             talle = talle_inicial(catalogo[indice_prenda], talle)
             indice_color = 0
@@ -675,6 +732,7 @@ def ejecutar_probador_camara(prenda_inicial, catalogo, talle_elegido="M", color_
                 indice_prenda = num_idx
                 notificacion_texto = f"Prenda: {catalogo[indice_prenda]['nombre']}"
                 notificacion_tiempo = time.time()
+                inicio_prenda = time.time()
                 tracker.reiniciar()
                 talle = talle_inicial(catalogo[indice_prenda], talle)
                 indice_color = 0

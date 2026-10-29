@@ -56,6 +56,35 @@ def punto_en_boton_galeria(x, y, ancho, alto):
     return x0 <= x <= x1 and y0 <= y <= y1
 
 
+# Botón para comprar la prenda que se está probando (a la izquierda del de la galería)
+TEXTO_BOTON_COMPRAR = "Comprar  [B]"
+ANCHO_BOTON_COMPRAR = 150
+
+
+def rectangulo_boton_comprar(ancho, alto):
+    """(x0, y0, x1, y1) del botón 'Comprar' en una imagen de ese tamaño."""
+    x0_galeria, y0, _, y1 = rectangulo_boton_galeria(ancho, alto)
+    x1 = x0_galeria - 10
+    return x1 - ANCHO_BOTON_COMPRAR, y0, x1, y1
+
+
+def punto_en_boton_comprar(x, y, ancho, alto):
+    x0, y0, x1, y1 = rectangulo_boton_comprar(ancho, alto)
+    return x0 <= x <= x1 and y0 <= y <= y1
+
+
+def dibujar_boton_comprar(frame, resaltado=False):
+    """Botón dorado (como 'Confirmar compra' en la galería)."""
+    alto, ancho = frame.shape[:2]
+    x0, y0, x1, y1 = rectangulo_boton_comprar(ancho, alto)
+    color = (63, 133, 168) if resaltado else (90, 160, 201)  # COLOR_GOLD(_HOVER) en BGR
+    cv2.rectangle(frame, (x0, y0), (x1, y1), color, -1, cv2.LINE_AA)
+    cv2.rectangle(frame, (x0, y0), (x1, y1), (255, 255, 255), 1, cv2.LINE_AA)
+    (w, h), _ = cv2.getTextSize(TEXTO_BOTON_COMPRAR, cv2.FONT_HERSHEY_SIMPLEX, 0.55, 1)
+    cv2.putText(frame, TEXTO_BOTON_COMPRAR, (x0 + (ANCHO_BOTON_COMPRAR - w) // 2, y0 + (y1 - y0 + h) // 2),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.55, (255, 255, 255), 1, cv2.LINE_AA)
+
+
 def dibujar_boton_galeria(frame, resaltado=False):
     """Botón rosa con el texto centrado; más intenso cuando el mouse está encima."""
     alto, ancho = frame.shape[:2]
@@ -101,7 +130,7 @@ NOMBRES_ORIENTACION = {"frente": "De frente", "girada": "Girada", "perfil": "De 
 
 def dibujar_hud_probador(frame, prenda_info, factor_escala, mensaje_notif="", modo_malla=True,
                          talle="M", figura="", fps=None, recorte=True, orientacion=None,
-                         boton_resaltado=False, color="", aviso_encuadre=""):
+                         boton_resaltado=False, color="", aviso_encuadre="", comprar_resaltado=False):
     """Dibuja la interfaz visual limpia y elegante requerida sobre la cámara."""
     alto, ancho, _ = frame.shape
 
@@ -140,8 +169,9 @@ def dibujar_hud_probador(frame, prenda_info, factor_escala, mensaje_notif="", mo
     cv2.putText(frame, texto_talle, (ancho - 740, 52), cv2.FONT_HERSHEY_SIMPLEX, 0.46, (200, 235, 200), 1, cv2.LINE_AA)
 
     # Controles inferiores limpios y claros
-    controles = "[G] Galeria | [C] Foto | [1..9 / N] Prenda | [T] Talle | [K] Color | [V] Medidas | [I] Diagnostico | [R] Recorte | [M] Modo | [+/-] Calce | [Q] Cerrar camara"
+    controles = "[G] Galeria | [C] Foto | [1..9 / N] Prenda | [T] Talle | [K] Color | [V] Medidas | [I] Diagnostico | [R] Recorte | [M] Modo | [+/-] Calce | [Q] Cerrar"
     cv2.putText(frame, controles, (25, alto - 18), cv2.FONT_HERSHEY_SIMPLEX, 0.46, (220, 220, 220), 1, cv2.LINE_AA)
+    dibujar_boton_comprar(frame, comprar_resaltado)
     dibujar_boton_galeria(frame, boton_resaltado)
 
     # Guía de encuadre: cómo pararse para que la prenda se ajuste bien

@@ -765,17 +765,32 @@ class BoutiqueVirtualApp:
         gc.collect()
         gc.disable()
         inicio = time.time()
+        # Las compras hechas con el botón "Comprar" de la cámara quedan a nombre de la cuenta abierta
+        sesion = {"id_cliente": self.cliente["id_cliente"] if self.cliente else None}
         try:
             prenda_final, color_final = ejecutar_probador_camara(
                 self.prenda_seleccionada, self.catalogo, talle_elegido=self.talle_seleccionado.get(),
-                color_elegido=self.color_seleccionado.get())
+                color_elegido=self.color_seleccionado.get(), sesion=sesion)
         finally:
             gc.enable()
             gc.collect()
-        self.registrar_prueba(prenda_final or self.prenda_seleccionada, color_final, time.time() - inicio)
+        if sesion.get("cliente"):
+            self.cliente = sesion["cliente"]  # puntos y nivel al día
+        prenda_final = prenda_final or self.prenda_seleccionada
+        comprada = next((p for p in reversed(sesion.get("pruebas", [])) if p[1] == prenda_final.get("id_prenda")), None)
+        if comprada:
+            self.ultima_prueba = comprada  # la prueba ya se guardó junto con la compra
+        else:
+            self.registrar_prueba(prenda_final, color_final, time.time() - inicio)
         self.color_seleccionado.set(color_final or "")
         self.root.deiconify()
-        self.mostrar_confirmacion(prenda_final or self.prenda_seleccionada)
+        self.mostrar_confirmacion(prenda_final)
+        compras = sesion.get("compras", [])
+        if compras:
+            total = sum(float(c["detalle"]["total"]) for c in compras)
+            messagebox.showinfo("Compras en el probador",
+                                f"Registraste {len(compras)} compra(s) desde la cámara por {precio_str(total)}.\n"
+                                + "\n".join(f"Compra #{c['id_compra']}" for c in compras))
         self.root.lift()
         self.root.attributes("-topmost", True)
         self.root.after(300, lambda: self.root.attributes("-topmost", False))
