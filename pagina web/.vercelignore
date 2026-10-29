@@ -1,0 +1,5 @@
+scripts/
+.venv/
+__pycache__/
+servidor_local.py
+.env

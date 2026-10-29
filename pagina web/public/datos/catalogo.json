@@ -1,0 +1,2852 @@
+{
+ "prendas": [
+  {
+   "codigo": "chomba_crop_rosa",
+   "id_prenda": 18,
+   "sku": "VV-0009",
+   "nombre": "Chomba Crop Acanalada",
+   "descripcion": "Chomba corta de rib con cuello blanco en contraste, escote en V y bordado al pecho. Preppy, femenina y fresca.",
+   "categoria": "Chombas",
+   "genero": "mujer",
+   "calce": "entallado",
+   "precio": 26900,
+   "colores": [
+    {
+     "nombre": "Rosa",
+     "hex": "#EBC7CF",
+     "es_foto": true
+    },
+    {
+     "nombre": "Celeste",
+     "hex": "#BFD6E8",
+     "es_foto": false
+    },
+    {
+     "nombre": "Lavanda",
+     "hex": "#CDBFE0",
+     "es_foto": false
+    }
+   ],
+   "talles": [
+    "XS",
+    "S",
+    "M",
+    "L"
+   ],
+   "medidas_talles": {
+    "XS": {
+     "pecho": 80,
+     "cintura": 66,
+     "cadera": 84,
+     "hombros": 35,
+     "largo": 48
+    },
+    "S": {
+     "pecho": 84,
+     "cintura": 70,
+     "cadera": 88,
+     "hombros": 36,
+     "largo": 50
+    },
+    "M": {
+     "pecho": 88,
+     "cintura": 74,
+     "cadera": 92,
+     "hombros": 37,
+     "largo": 52
+    },
+    "L": {
+     "pecho": 94,
+     "cintura": 80,
+     "cadera": 98,
+     "hombros": 39,
+     "largo": 54
+    }
+   },
+   "stock": {
+    "Rosa|L": 5,
+    "Rosa|M": 0,
+    "Rosa|S": 5,
+    "Rosa|XS": 5,
+    "Celeste|L": 5,
+    "Celeste|M": 5,
+    "Celeste|S": 5,
+    "Lavanda|L": 5,
+    "Lavanda|M": 5,
+    "Lavanda|S": 5,
+    "Celeste|XS": 5,
+    "Lavanda|XS": 5
+   },
+   "imagenes": {
+    "Rosa": "prendas/chomba_crop_rosa__rosa.webp",
+    "Celeste": "prendas/chomba_crop_rosa__celeste.webp",
+    "Lavanda": "prendas/chomba_crop_rosa__lavanda.webp"
+   },
+   "ancho": 755,
+   "alto": 702,
+   "tiene_mangas": true,
+   "puntos": {
+    "collar_top_mid": [
+     376.5,
+     7.0
+    ],
+    "collar_top_l": [
+     257.9,
+     20.8
+    ],
+    "collar_top_r": [
+     495.1,
+     20.8
+    ],
+    "collar_tip_l": [
+     280.2,
+     100.6
+    ],
+    "collar_tip_r": [
+     472.8,
+     100.6
+    ],
+    "neck_v": [
+     376.5,
+     117.1
+    ],
+    "chest_mid": [
+     376.5,
+     268.4
+    ],
+    "torso_mid": [
+     376.5,
+     454.2
+    ],
+    "hem_mid": [
+     376.5,
+     695.0
+    ],
+    "shoulder_l": [
+     146.8,
+     102.0
+    ],
+    "shoulder_r": [
+     606.2,
+     104.0
+    ],
+    "sleeve_top_l": [
+     55.3,
+     218.0
+    ],
+    "sleeve_top_r": [
+     697.7,
+     221.0
+    ],
+    "bicep_out_l": [
+     30.6,
+     234.0
+    ],
+    "bicep_out_r": [
+     722.4,
+     235.5
+    ],
+    "bicep_in_l": [
+     128.0,
+     235.5
+    ],
+    "bicep_in_r": [
+     624.0,
+     237.5
+    ],
+    "sleeve_cuff_out_l": [
+     6.0,
+     250.0
+    ],
+    "sleeve_cuff_out_r": [
+     747.0,
+     250.0
+    ],
+    "sleeve_cuff_in_l": [
+     124.0,
+     359.0
+    ],
+    "sleeve_cuff_in_r": [
+     628.0,
+     361.0
+    ],
+    "armpit_l": [
+     132.0,
+     112.0
+    ],
+    "armpit_r": [
+     620.0,
+     114.0
+    ],
+    "underbust_l": [
+     146.0,
+     351.0
+    ],
+    "underbust_r": [
+     604.0,
+     351.0
+    ],
+    "waist_l": [
+     186.0,
+     454.2
+    ],
+    "waist_r": [
+     567.0,
+     454.2
+    ],
+    "high_hip_l": [
+     210.0,
+     571.2
+    ],
+    "high_hip_r": [
+     547.0,
+     571.2
+    ],
+    "hem_l": [
+     373.0,
+     695.0
+    ],
+    "hem_r": [
+     378.0,
+     695.0
+    ]
+   }
+  },
+  {
+   "codigo": "polo_azul_marino",
+   "id_prenda": 3,
+   "sku": "VV-0011",
+   "nombre": "Chomba Polo Azul Marino",
+   "descripcion": "Chomba tipo polo azul marino con cuello blanco estructurado, tapeta y ribete en mangas.",
+   "categoria": "Chombas",
+   "genero": "hombre",
+   "calce": "regular",
+   "precio": 28500,
+   "colores": [
+    {
+     "nombre": "Azul Marino",
+     "hex": "#1C2438",
+     "es_foto": true
+    },
+    {
+     "nombre": "Verde Bosque",
+     "hex": "#1F3A2E",
+     "es_foto": false
+    }
+   ],
+   "talles": [
+    "S",
+    "M",
+    "L",
+    "XL"
+   ],
+   "medidas_talles": {
+    "S": {
+     "pecho": 92,
+     "cintura": 84,
+     "cadera": 92,
+     "hombros": 42,
+     "largo": 68
+    },
+    "M": {
+     "pecho": 98,
+     "cintura": 90,
+     "cadera": 98,
+     "hombros": 44,
+     "largo": 71
+    },
+    "L": {
+     "pecho": 104,
+     "cintura": 96,
+     "cadera": 104,
+     "hombros": 46,
+     "largo": 74
+    },
+    "XL": {
+     "pecho": 110,
+     "cintura": 102,
+     "cadera": 110,
+     "hombros": 48,
+     "largo": 77
+    }
+   },
+   "stock": {
+    "Azul Marino|L": 5,
+    "Azul Marino|M": 5,
+    "Azul Marino|S": 5,
+    "Azul Marino|XL": 5,
+    "Verde Bosque|L": 5,
+    "Verde Bosque|M": 5,
+    "Verde Bosque|S": 5,
+    "Verde Bosque|XL": 5
+   },
+   "imagenes": {
+    "Azul Marino": "prendas/polo_azul_marino__azul-marino.webp",
+    "Verde Bosque": "prendas/polo_azul_marino__verde-bosque.webp"
+   },
+   "ancho": 607,
+   "alto": 760,
+   "tiene_mangas": true,
+   "puntos": {
+    "collar_top_mid": [
+     303.1,
+     5.2
+    ],
+    "collar_top_l": [
+     207.7,
+     20.1
+    ],
+    "collar_top_r": [
+     398.4,
+     20.1
+    ],
+    "collar_tip_l": [
+     225.6,
+     107.0
+    ],
+    "collar_tip_r": [
+     380.5,
+     107.0
+    ],
+    "neck_v": [
+     303.1,
+     125.0
+    ],
+    "chest_mid": [
+     303.1,
+     289.7
+    ],
+    "torso_mid": [
+     303.1,
+     491.9
+    ],
+    "hem_mid": [
+     303.1,
+     754.0
+    ],
+    "shoulder_l": [
+     118.4,
+     80.0
+    ],
+    "shoulder_r": [
+     487.7,
+     80.0
+    ],
+    "sleeve_top_l": [
+     34.9,
+     169.9
+    ],
+    "sleeve_top_r": [
+     571.2,
+     169.9
+    ],
+    "bicep_out_l": [
+     17.1,
+     244.8
+    ],
+    "bicep_out_r": [
+     589.0,
+     244.8
+    ],
+    "bicep_in_l": [
+     124.3,
+     319.7
+    ],
+    "bicep_in_r": [
+     481.8,
+     319.7
+    ],
+    "sleeve_cuff_out_l": [
+     5.2,
+     319.7
+    ],
+    "sleeve_cuff_out_r": [
+     601.0,
+     319.7
+    ],
+    "sleeve_cuff_in_l": [
+     100.5,
+     349.6
+    ],
+    "sleeve_cuff_in_r": [
+     505.6,
+     349.6
+    ],
+    "armpit_l": [
+     154.1,
+     289.7
+    ],
+    "armpit_r": [
+     452.0,
+     289.7
+    ],
+    "underbust_l": [
+     157.1,
+     379.6
+    ],
+    "underbust_r": [
+     449.0,
+     379.6
+    ],
+    "waist_l": [
+     160.1,
+     491.9
+    ],
+    "waist_r": [
+     446.0,
+     491.9
+    ],
+    "high_hip_l": [
+     157.1,
+     619.2
+    ],
+    "high_hip_r": [
+     449.0,
+     619.2
+    ],
+    "hem_l": [
+     154.1,
+     754.0
+    ],
+    "hem_r": [
+     452.0,
+     754.0
+    ]
+   }
+  },
+  {
+   "codigo": "polo_ralph_lauren",
+   "id_prenda": 1,
+   "sku": "VV-0012",
+   "nombre": "Chomba Polo Ralph Lauren",
+   "descripcion": "Chomba clásica Ralph Lauren azul marino con cuello estructurado, icónico Big Pony blanco, escudo '20' y número '3' bordado en la manga.",
+   "categoria": "Chombas",
+   "genero": "hombre",
+   "calce": "regular",
+   "precio": 38500,
+   "colores": [
+    {
+     "nombre": "Azul Marino",
+     "hex": "#1C2438",
+     "es_foto": true
+    }
+   ],
+   "talles": [
+    "S",
+    "M",
+    "L",
+    "XL"
+   ],
+   "medidas_talles": {
+    "S": {
+     "pecho": 94,
+     "cintura": 86,
+     "cadera": 94,
+     "hombros": 43,
+     "largo": 69
+    },
+    "M": {
+     "pecho": 100,
+     "cintura": 92,
+     "cadera": 100,
+     "hombros": 45,
+     "largo": 72
+    },
+    "L": {
+     "pecho": 106,
+     "cintura": 98,
+     "cadera": 106,
+     "hombros": 47,
+     "largo": 75
+    },
+    "XL": {
+     "pecho": 112,
+     "cintura": 104,
+     "cadera": 112,
+     "hombros": 49,
+     "largo": 78
+    }
+   },
+   "stock": {
+    "Azul Marino|L": 5,
+    "Azul Marino|M": 5,
+    "Azul Marino|S": 5,
+    "Azul Marino|XL": 5
+   },
+   "imagenes": {
+    "Azul Marino": "prendas/polo_ralph_lauren__azul-marino.webp"
+   },
+   "ancho": 635,
+   "alto": 667,
+   "tiene_mangas": true,
+   "puntos": {
+    "collar_top_mid": [
+     317.0,
+     6.0
+    ],
+    "collar_top_l": [
+     217.5,
+     19.1
+    ],
+    "collar_top_r": [
+     416.5,
+     19.1
+    ],
+    "collar_tip_l": [
+     236.1,
+     40.8
+    ],
+    "collar_tip_r": [
+     397.9,
+     40.8
+    ],
+    "neck_v": [
+     317.0,
+     47.0
+    ],
+    "chest_mid": [
+     317.0,
+     254.5
+    ],
+    "torso_mid": [
+     317.0,
+     431.1
+    ],
+    "hem_mid": [
+     317.0,
+     660.0
+    ],
+    "shoulder_l": [
+     124.2,
+     71.4
+    ],
+    "shoulder_r": [
+     509.8,
+     71.4
+    ],
+    "sleeve_top_l": [
+     37.1,
+     149.9
+    ],
+    "sleeve_top_r": [
+     596.9,
+     149.9
+    ],
+    "bicep_out_l": [
+     18.4,
+     215.3
+    ],
+    "bicep_out_r": [
+     615.6,
+     215.3
+    ],
+    "bicep_in_l": [
+     130.4,
+     280.7
+    ],
+    "bicep_in_r": [
+     503.6,
+     280.7
+    ],
+    "sleeve_cuff_out_l": [
+     6.0,
+     280.7
+    ],
+    "sleeve_cuff_out_r": [
+     628.0,
+     280.7
+    ],
+    "sleeve_cuff_in_l": [
+     105.5,
+     306.8
+    ],
+    "sleeve_cuff_in_r": [
+     528.5,
+     306.8
+    ],
+    "armpit_l": [
+     161.5,
+     254.5
+    ],
+    "armpit_r": [
+     472.5,
+     254.5
+    ],
+    "underbust_l": [
+     164.6,
+     333.0
+    ],
+    "underbust_r": [
+     469.4,
+     333.0
+    ],
+    "waist_l": [
+     167.7,
+     431.1
+    ],
+    "waist_r": [
+     466.3,
+     431.1
+    ],
+    "high_hip_l": [
+     164.6,
+     542.3
+    ],
+    "high_hip_r": [
+     469.4,
+     542.3
+    ],
+    "hem_l": [
+     161.5,
+     660.0
+    ],
+    "hem_r": [
+     472.5,
+     660.0
+    ]
+   }
+  },
+  {
+   "codigo": "remera_oversize_hot_wheels",
+   "id_prenda": 10,
+   "sku": "VV-0001",
+   "nombre": "Remera Oversize Hot Wheels Speed",
+   "descripcion": "Remera oversize de algodón pesado con estampa racing Hot Wheels 'Built for Speed' al frente. Calce amplio y hombro caído, ideal para un look urbano relajado.",
+   "categoria": "Remeras",
+   "genero": "unisex",
+   "calce": "holgado",
+   "precio": 34900,
+   "colores": [
+    {
+     "nombre": "Crema",
+     "hex": "#ECE7DA",
+     "es_foto": true
+    },
+    {
+     "nombre": "Blanco",
+     "hex": "#F5F5F2",
+     "es_foto": false
+    },
+    {
+     "nombre": "Gris Perla",
+     "hex": "#C9C9C6",
+     "es_foto": false
+    }
+   ],
+   "talles": [
+    "S",
+    "M",
+    "L",
+    "XL"
+   ],
+   "medidas_talles": {
+    "S": {
+     "pecho": 112,
+     "cintura": 112,
+     "cadera": 112,
+     "hombros": 52,
+     "largo": 70
+    },
+    "M": {
+     "pecho": 118,
+     "cintura": 118,
+     "cadera": 118,
+     "hombros": 54,
+     "largo": 72
+    },
+    "L": {
+     "pecho": 124,
+     "cintura": 124,
+     "cadera": 124,
+     "hombros": 56,
+     "largo": 74
+    },
+    "XL": {
+     "pecho": 130,
+     "cintura": 130,
+     "cadera": 130,
+     "hombros": 58,
+     "largo": 76
+    }
+   },
+   "stock": {
+    "Crema|L": 5,
+    "Crema|M": 5,
+    "Crema|S": 5,
+    "Blanco|L": 5,
+    "Blanco|M": 5,
+    "Blanco|S": 5,
+    "Crema|XL": 5,
+    "Blanco|XL": 5,
+    "Gris Perla|L": 5,
+    "Gris Perla|M": 5,
+    "Gris Perla|S": 5,
+    "Gris Perla|XL": 5
+   },
+   "imagenes": {
+    "Crema": "prendas/remera_oversize_hot_wheels__crema.webp",
+    "Blanco": "prendas/remera_oversize_hot_wheels__blanco.webp",
+    "Gris Perla": "prendas/remera_oversize_hot_wheels__gris-perla.webp"
+   },
+   "ancho": 659,
+   "alto": 760,
+   "tiene_mangas": true,
+   "puntos": {
+    "collar_top_mid": [
+     329.1,
+     6.6
+    ],
+    "collar_top_l": [
+     225.6,
+     21.5
+    ],
+    "collar_top_r": [
+     432.7,
+     21.5
+    ],
+    "collar_tip_l": [
+     245.0,
+     46.6
+    ],
+    "collar_tip_r": [
+     413.3,
+     46.6
+    ],
+    "neck_v": [
+     329.1,
+     53.7
+    ],
+    "chest_mid": [
+     329.1,
+     290.4
+    ],
+    "torso_mid": [
+     329.1,
+     492.0
+    ],
+    "hem_mid": [
+     329.1,
+     753.4
+    ],
+    "shoulder_l": [
+     128.6,
+     81.3
+    ],
+    "shoulder_r": [
+     529.7,
+     81.3
+    ],
+    "sleeve_top_l": [
+     38.0,
+     170.9
+    ],
+    "sleeve_top_r": [
+     620.3,
+     170.9
+    ],
+    "bicep_out_l": [
+     18.6,
+     245.6
+    ],
+    "bicep_out_r": [
+     639.7,
+     245.6
+    ],
+    "bicep_in_l": [
+     135.0,
+     320.3
+    ],
+    "bicep_in_r": [
+     523.2,
+     320.3
+    ],
+    "sleeve_cuff_out_l": [
+     5.7,
+     320.3
+    ],
+    "sleeve_cuff_out_r": [
+     652.6,
+     320.3
+    ],
+    "sleeve_cuff_in_l": [
+     109.2,
+     350.1
+    ],
+    "sleeve_cuff_in_r": [
+     549.1,
+     350.1
+    ],
+    "armpit_l": [
+     167.4,
+     290.4
+    ],
+    "armpit_r": [
+     490.9,
+     290.4
+    ],
+    "underbust_l": [
+     170.6,
+     380.0
+    ],
+    "underbust_r": [
+     487.7,
+     380.0
+    ],
+    "waist_l": [
+     173.9,
+     492.0
+    ],
+    "waist_r": [
+     484.4,
+     492.0
+    ],
+    "high_hip_l": [
+     170.6,
+     619.0
+    ],
+    "high_hip_r": [
+     487.7,
+     619.0
+    ],
+    "hem_l": [
+     167.4,
+     753.4
+    ],
+    "hem_r": [
+     490.9,
+     753.4
+    ]
+   }
+  },
+  {
+   "codigo": "remera_oversize_la_milano",
+   "id_prenda": 11,
+   "sku": "VV-0002",
+   "nombre": "Remera Oversize La Milano",
+   "descripcion": "Remera oversize premium con escudo y caligrafía 'La Milano · Disegnato in Italia' en bordó. Estética old money, minimalista y elegante.",
+   "categoria": "Remeras",
+   "genero": "unisex",
+   "calce": "holgado",
+   "precio": 36900,
+   "colores": [
+    {
+     "nombre": "Blanco",
+     "hex": "#F5F5F2",
+     "es_foto": true
+    },
+    {
+     "nombre": "Arena",
+     "hex": "#D9CBB3",
+     "es_foto": false
+    },
+    {
+     "nombre": "Gris Perla",
+     "hex": "#C9C9C6",
+     "es_foto": false
+    }
+   ],
+   "talles": [
+    "S",
+    "M",
+    "L",
+    "XL"
+   ],
+   "medidas_talles": {
+    "S": {
+     "pecho": 112,
+     "cintura": 112,
+     "cadera": 112,
+     "hombros": 52,
+     "largo": 70
+    },
+    "M": {
+     "pecho": 118,
+     "cintura": 118,
+     "cadera": 118,
+     "hombros": 54,
+     "largo": 72
+    },
+    "L": {
+     "pecho": 124,
+     "cintura": 124,
+     "cadera": 124,
+     "hombros": 56,
+     "largo": 74
+    },
+    "XL": {
+     "pecho": 130,
+     "cintura": 130,
+     "cadera": 130,
+     "hombros": 58,
+     "largo": 76
+    }
+   },
+   "stock": {
+    "Arena|L": 5,
+    "Arena|M": 5,
+    "Arena|S": 5,
+    "Arena|XL": 5,
+    "Blanco|L": 5,
+    "Blanco|M": 5,
+    "Blanco|S": 5,
+    "Blanco|XL": 5,
+    "Gris Perla|L": 5,
+    "Gris Perla|M": 5,
+    "Gris Perla|S": 5,
+    "Gris Perla|XL": 5
+   },
+   "imagenes": {
+    "Blanco": "prendas/remera_oversize_la_milano__blanco.webp",
+    "Arena": "prendas/remera_oversize_la_milano__arena.webp",
+    "Gris Perla": "prendas/remera_oversize_la_milano__gris-perla.webp"
+   },
+   "ancho": 659,
+   "alto": 760,
+   "tiene_mangas": true,
+   "puntos": {
+    "collar_top_mid": [
+     329.1,
+     6.6
+    ],
+    "collar_top_l": [
+     225.6,
+     21.5
+    ],
+    "collar_top_r": [
+     432.7,
+     21.5
+    ],
+    "collar_tip_l": [
+     245.0,
+     46.6
+    ],
+    "collar_tip_r": [
+     413.3,
+     46.6
+    ],
+    "neck_v": [
+     329.1,
+     53.7
+    ],
+    "chest_mid": [
+     329.1,
+     290.4
+    ],
+    "torso_mid": [
+     329.1,
+     492.0
+    ],
+    "hem_mid": [
+     329.1,
+     753.4
+    ],
+    "shoulder_l": [
+     128.6,
+     81.3
+    ],
+    "shoulder_r": [
+     529.7,
+     81.3
+    ],
+    "sleeve_top_l": [
+     38.0,
+     170.9
+    ],
+    "sleeve_top_r": [
+     620.3,
+     170.9
+    ],
+    "bicep_out_l": [
+     18.6,
+     245.6
+    ],
+    "bicep_out_r": [
+     639.7,
+     245.6
+    ],
+    "bicep_in_l": [
+     135.0,
+     320.3
+    ],
+    "bicep_in_r": [
+     523.2,
+     320.3
+    ],
+    "sleeve_cuff_out_l": [
+     5.7,
+     320.3
+    ],
+    "sleeve_cuff_out_r": [
+     652.6,
+     320.3
+    ],
+    "sleeve_cuff_in_l": [
+     109.2,
+     350.1
+    ],
+    "sleeve_cuff_in_r": [
+     549.1,
+     350.1
+    ],
+    "armpit_l": [
+     167.4,
+     290.4
+    ],
+    "armpit_r": [
+     490.9,
+     290.4
+    ],
+    "underbust_l": [
+     170.6,
+     380.0
+    ],
+    "underbust_r": [
+     487.7,
+     380.0
+    ],
+    "waist_l": [
+     173.9,
+     492.0
+    ],
+    "waist_r": [
+     484.4,
+     492.0
+    ],
+    "high_hip_l": [
+     170.6,
+     619.0
+    ],
+    "high_hip_r": [
+     487.7,
+     619.0
+    ],
+    "hem_l": [
+     167.4,
+     753.4
+    ],
+    "hem_r": [
+     490.9,
+     753.4
+    ]
+   }
+  },
+  {
+   "codigo": "remera_oversize_that_silence",
+   "id_prenda": 12,
+   "sku": "VV-0003",
+   "nombre": "Remera Oversize That Silence",
+   "descripcion": "Remera oversize con tipografía editorial 'That silence that speaks volume' en azul profundo. Algodón suave lavado, corte boxy.",
+   "categoria": "Remeras",
+   "genero": "unisex",
+   "calce": "holgado",
+   "precio": 33900,
+   "colores": [
+    {
+     "nombre": "Blanco Hueso",
+     "hex": "#F1EFE9",
+     "es_foto": true
+    },
+    {
+     "nombre": "Gris Perla",
+     "hex": "#C9C9C6",
+     "es_foto": false
+    },
+    {
+     "nombre": "Celeste Bruma",
+     "hex": "#C8D6E0",
+     "es_foto": false
+    }
+   ],
+   "talles": [
+    "S",
+    "M",
+    "L",
+    "XL"
+   ],
+   "medidas_talles": {
+    "S": {
+     "pecho": 112,
+     "cintura": 112,
+     "cadera": 112,
+     "hombros": 52,
+     "largo": 70
+    },
+    "M": {
+     "pecho": 118,
+     "cintura": 118,
+     "cadera": 118,
+     "hombros": 54,
+     "largo": 72
+    },
+    "L": {
+     "pecho": 124,
+     "cintura": 124,
+     "cadera": 124,
+     "hombros": 56,
+     "largo": 74
+    },
+    "XL": {
+     "pecho": 130,
+     "cintura": 130,
+     "cadera": 130,
+     "hombros": 58,
+     "largo": 76
+    }
+   },
+   "stock": {
+    "Gris Perla|L": 5,
+    "Gris Perla|M": 5,
+    "Gris Perla|S": 5,
+    "Gris Perla|XL": 5,
+    "Blanco Hueso|L": 5,
+    "Blanco Hueso|M": 5,
+    "Blanco Hueso|S": 5,
+    "Blanco Hueso|XL": 5,
+    "Celeste Bruma|L": 5,
+    "Celeste Bruma|M": 5,
+    "Celeste Bruma|S": 5,
+    "Celeste Bruma|XL": 5
+   },
+   "imagenes": {
+    "Blanco Hueso": "prendas/remera_oversize_that_silence__blanco-hueso.webp",
+    "Gris Perla": "prendas/remera_oversize_that_silence__gris-perla.webp",
+    "Celeste Bruma": "prendas/remera_oversize_that_silence__celeste-bruma.webp"
+   },
+   "ancho": 659,
+   "alto": 760,
+   "tiene_mangas": true,
+   "puntos": {
+    "collar_top_mid": [
+     329.1,
+     6.6
+    ],
+    "collar_top_l": [
+     225.6,
+     21.5
+    ],
+    "collar_top_r": [
+     432.7,
+     21.5
+    ],
+    "collar_tip_l": [
+     245.0,
+     46.6
+    ],
+    "collar_tip_r": [
+     413.3,
+     46.6
+    ],
+    "neck_v": [
+     329.1,
+     53.7
+    ],
+    "chest_mid": [
+     329.1,
+     290.4
+    ],
+    "torso_mid": [
+     329.1,
+     492.0
+    ],
+    "hem_mid": [
+     329.1,
+     753.4
+    ],
+    "shoulder_l": [
+     128.6,
+     81.3
+    ],
+    "shoulder_r": [
+     529.7,
+     81.3
+    ],
+    "sleeve_top_l": [
+     38.0,
+     170.9
+    ],
+    "sleeve_top_r": [
+     620.3,
+     170.9
+    ],
+    "bicep_out_l": [
+     18.6,
+     245.6
+    ],
+    "bicep_out_r": [
+     639.7,
+     245.6
+    ],
+    "bicep_in_l": [
+     135.0,
+     320.3
+    ],
+    "bicep_in_r": [
+     523.2,
+     320.3
+    ],
+    "sleeve_cuff_out_l": [
+     5.7,
+     320.3
+    ],
+    "sleeve_cuff_out_r": [
+     652.6,
+     320.3
+    ],
+    "sleeve_cuff_in_l": [
+     109.2,
+     350.1
+    ],
+    "sleeve_cuff_in_r": [
+     549.1,
+     350.1
+    ],
+    "armpit_l": [
+     167.4,
+     290.4
+    ],
+    "armpit_r": [
+     490.9,
+     290.4
+    ],
+    "underbust_l": [
+     170.6,
+     380.0
+    ],
+    "underbust_r": [
+     487.7,
+     380.0
+    ],
+    "waist_l": [
+     173.9,
+     492.0
+    ],
+    "waist_r": [
+     484.4,
+     492.0
+    ],
+    "high_hip_l": [
+     170.6,
+     619.0
+    ],
+    "high_hip_r": [
+     487.7,
+     619.0
+    ],
+    "hem_l": [
+     167.4,
+     753.4
+    ],
+    "hem_r": [
+     490.9,
+     753.4
+    ]
+   }
+  },
+  {
+   "codigo": "remera_fitted_negra",
+   "id_prenda": 13,
+   "sku": "VV-0004",
+   "nombre": "Remera Fitted Minimal",
+   "descripcion": "Remera entallada de tejido técnico elástico con logo mínimo al frente. Silueta al cuerpo, cuello redondo y caída impecable.",
+   "categoria": "Remeras",
+   "genero": "mujer",
+   "calce": "entallado",
+   "precio": 24900,
+   "colores": [
+    {
+     "nombre": "Negro",
+     "hex": "#1A1A1A",
+     "es_foto": true
+    },
+    {
+     "nombre": "Blanco",
+     "hex": "#F5F5F2",
+     "es_foto": false
+    },
+    {
+     "nombre": "Verde Salvia",
+     "hex": "#A3B09A",
+     "es_foto": false
+    }
+   ],
+   "talles": [
+    "XS",
+    "S",
+    "M",
+    "L"
+   ],
+   "medidas_talles": {
+    "XS": {
+     "pecho": 80,
+     "cintura": 66,
+     "cadera": 84,
+     "hombros": 36,
+     "largo": 56
+    },
+    "S": {
+     "pecho": 84,
+     "cintura": 70,
+     "cadera": 88,
+     "hombros": 37,
+     "largo": 58
+    },
+    "M": {
+     "pecho": 88,
+     "cintura": 74,
+     "cadera": 92,
+     "hombros": 38,
+     "largo": 60
+    },
+    "L": {
+     "pecho": 94,
+     "cintura": 80,
+     "cadera": 98,
+     "hombros": 40,
+     "largo": 62
+    }
+   },
+   "stock": {
+    "Negro|L": 5,
+    "Negro|M": 5,
+    "Negro|S": 5,
+    "Blanco|L": 5,
+    "Blanco|M": 5,
+    "Blanco|S": 5,
+    "Negro|XS": 5,
+    "Blanco|XS": 5,
+    "Verde Salvia|L": 5,
+    "Verde Salvia|M": 5,
+    "Verde Salvia|S": 5,
+    "Verde Salvia|XS": 5
+   },
+   "imagenes": {
+    "Negro": "prendas/remera_fitted_negra__negro.webp",
+    "Blanco": "prendas/remera_fitted_negra__blanco.webp",
+    "Verde Salvia": "prendas/remera_fitted_negra__verde-salvia.webp"
+   },
+   "ancho": 659,
+   "alto": 760,
+   "tiene_mangas": true,
+   "puntos": {
+    "collar_top_mid": [
+     329.1,
+     6.6
+    ],
+    "collar_top_l": [
+     225.6,
+     21.5
+    ],
+    "collar_top_r": [
+     432.7,
+     21.5
+    ],
+    "collar_tip_l": [
+     245.0,
+     46.6
+    ],
+    "collar_tip_r": [
+     413.3,
+     46.6
+    ],
+    "neck_v": [
+     329.1,
+     53.7
+    ],
+    "chest_mid": [
+     329.1,
+     290.0
+    ],
+    "torso_mid": [
+     329.1,
+     491.4
+    ],
+    "hem_mid": [
+     329.1,
+     752.5
+    ],
+    "shoulder_l": [
+     128.6,
+     81.2
+    ],
+    "shoulder_r": [
+     529.7,
+     81.2
+    ],
+    "sleeve_top_l": [
+     38.0,
+     170.7
+    ],
+    "sleeve_top_r": [
+     620.3,
+     170.7
+    ],
+    "bicep_out_l": [
+     18.6,
+     245.3
+    ],
+    "bicep_out_r": [
+     639.7,
+     245.3
+    ],
+    "bicep_in_l": [
+     135.0,
+     319.9
+    ],
+    "bicep_in_r": [
+     523.2,
+     319.9
+    ],
+    "sleeve_cuff_out_l": [
+     5.7,
+     319.9
+    ],
+    "sleeve_cuff_out_r": [
+     652.6,
+     319.9
+    ],
+    "sleeve_cuff_in_l": [
+     109.2,
+     349.7
+    ],
+    "sleeve_cuff_in_r": [
+     549.1,
+     349.7
+    ],
+    "armpit_l": [
+     167.4,
+     290.0
+    ],
+    "armpit_r": [
+     490.9,
+     290.0
+    ],
+    "underbust_l": [
+     170.6,
+     379.5
+    ],
+    "underbust_r": [
+     487.7,
+     379.5
+    ],
+    "waist_l": [
+     173.9,
+     491.4
+    ],
+    "waist_r": [
+     484.4,
+     491.4
+    ],
+    "high_hip_l": [
+     170.6,
+     618.2
+    ],
+    "high_hip_r": [
+     487.7,
+     618.2
+    ],
+    "hem_l": [
+     167.4,
+     752.5
+    ],
+    "hem_r": [
+     490.9,
+     752.5
+    ]
+   }
+  },
+  {
+   "codigo": "remera_retro_champs",
+   "id_prenda": 19,
+   "sku": "VV-0010",
+   "nombre": "Remera Retro Champs-Élysées",
+   "descripcion": "Remera estilo jersey vintage con vivos en contraste, puños y cuello acanalados crema, escudo y caligrafía 'Champs-Élysées'.",
+   "categoria": "Remeras",
+   "genero": "unisex",
+   "calce": "regular",
+   "precio": 34900,
+   "colores": [
+    {
+     "nombre": "Azul Marino",
+     "hex": "#1C2438",
+     "es_foto": true
+    },
+    {
+     "nombre": "Verde Bosque",
+     "hex": "#1F3A2E",
+     "es_foto": false
+    },
+    {
+     "nombre": "Bordó",
+     "hex": "#5A1A24",
+     "es_foto": false
+    }
+   ],
+   "talles": [
+    "S",
+    "M",
+    "L",
+    "XL"
+   ],
+   "medidas_talles": {
+    "S": {
+     "pecho": 98,
+     "cintura": 94,
+     "cadera": 98,
+     "hombros": 44,
+     "largo": 66
+    },
+    "M": {
+     "pecho": 104,
+     "cintura": 100,
+     "cadera": 104,
+     "hombros": 46,
+     "largo": 68
+    },
+    "L": {
+     "pecho": 110,
+     "cintura": 106,
+     "cadera": 110,
+     "hombros": 48,
+     "largo": 70
+    },
+    "XL": {
+     "pecho": 116,
+     "cintura": 112,
+     "cadera": 116,
+     "hombros": 50,
+     "largo": 72
+    }
+   },
+   "stock": {
+    "Bordó|L": 5,
+    "Bordó|M": 5,
+    "Bordó|S": 5,
+    "Bordó|XL": 5,
+    "Azul Marino|L": 5,
+    "Azul Marino|M": 5,
+    "Azul Marino|S": 5,
+    "Azul Marino|XL": 5,
+    "Verde Bosque|L": 5,
+    "Verde Bosque|M": 5,
+    "Verde Bosque|S": 5,
+    "Verde Bosque|XL": 5
+   },
+   "imagenes": {
+    "Azul Marino": "prendas/remera_retro_champs__azul-marino.webp",
+    "Verde Bosque": "prendas/remera_retro_champs__verde-bosque.webp",
+    "Bordó": "prendas/remera_retro_champs__bordo.webp"
+   },
+   "ancho": 849,
+   "alto": 746,
+   "tiene_mangas": true,
+   "puntos": {
+    "collar_top_mid": [
+     424.0,
+     6.0
+    ],
+    "collar_top_l": [
+     290.2,
+     20.6
+    ],
+    "collar_top_r": [
+     557.8,
+     20.6
+    ],
+    "collar_tip_l": [
+     315.3,
+     105.6
+    ],
+    "collar_tip_r": [
+     532.7,
+     105.6
+    ],
+    "neck_v": [
+     424.0,
+     123.1
+    ],
+    "chest_mid": [
+     424.0,
+     284.2
+    ],
+    "torso_mid": [
+     424.0,
+     481.8
+    ],
+    "hem_mid": [
+     424.0,
+     738.0
+    ],
+    "shoulder_l": [
+     164.8,
+     79.2
+    ],
+    "shoulder_r": [
+     683.2,
+     79.2
+    ],
+    "sleeve_top_l": [
+     47.8,
+     167.0
+    ],
+    "sleeve_top_r": [
+     800.2,
+     167.0
+    ],
+    "bicep_out_l": [
+     22.7,
+     240.2
+    ],
+    "bicep_out_r": [
+     825.3,
+     240.2
+    ],
+    "bicep_in_l": [
+     173.2,
+     313.4
+    ],
+    "bicep_in_r": [
+     674.8,
+     313.4
+    ],
+    "sleeve_cuff_out_l": [
+     6.0,
+     313.4
+    ],
+    "sleeve_cuff_out_r": [
+     842.0,
+     313.4
+    ],
+    "sleeve_cuff_in_l": [
+     139.8,
+     342.7
+    ],
+    "sleeve_cuff_in_r": [
+     708.2,
+     342.7
+    ],
+    "armpit_l": [
+     215.0,
+     284.2
+    ],
+    "armpit_r": [
+     633.0,
+     284.2
+    ],
+    "underbust_l": [
+     219.2,
+     372.0
+    ],
+    "underbust_r": [
+     628.8,
+     372.0
+    ],
+    "waist_l": [
+     223.4,
+     481.8
+    ],
+    "waist_r": [
+     624.6,
+     481.8
+    ],
+    "high_hip_l": [
+     219.2,
+     606.2
+    ],
+    "high_hip_r": [
+     628.8,
+     606.2
+    ],
+    "hem_l": [
+     215.0,
+     738.0
+    ],
+    "hem_r": [
+     633.0,
+     738.0
+    ]
+   }
+  },
+  {
+   "codigo": "top_halter_seamless",
+   "id_prenda": 14,
+   "sku": "VV-0005",
+   "nombre": "Top Halter Seamless",
+   "descripcion": "Top halter sin costuras de tejido acanalado deportivo, espalda descubierta y ajuste suave. Para entrenar o para un look athleisure.",
+   "categoria": "Tops",
+   "genero": "mujer",
+   "calce": "entallado",
+   "precio": 22900,
+   "colores": [
+    {
+     "nombre": "Azul Noche",
+     "hex": "#1B2133",
+     "es_foto": true
+    },
+    {
+     "nombre": "Chocolate",
+     "hex": "#4A3328",
+     "es_foto": false
+    },
+    {
+     "nombre": "Blanco",
+     "hex": "#F5F5F2",
+     "es_foto": false
+    }
+   ],
+   "talles": [
+    "XS",
+    "S",
+    "M",
+    "L"
+   ],
+   "medidas_talles": {
+    "XS": {
+     "pecho": 78,
+     "cintura": 62,
+     "cadera": 82,
+     "hombros": 32,
+     "largo": 44
+    },
+    "S": {
+     "pecho": 82,
+     "cintura": 66,
+     "cadera": 86,
+     "hombros": 33,
+     "largo": 46
+    },
+    "M": {
+     "pecho": 86,
+     "cintura": 70,
+     "cadera": 90,
+     "hombros": 34,
+     "largo": 48
+    },
+    "L": {
+     "pecho": 92,
+     "cintura": 76,
+     "cadera": 96,
+     "hombros": 36,
+     "largo": 50
+    }
+   },
+   "stock": {
+    "Blanco|L": 5,
+    "Blanco|M": 5,
+    "Blanco|S": 5,
+    "Blanco|XS": 5,
+    "Chocolate|L": 5,
+    "Chocolate|M": 5,
+    "Chocolate|S": 5,
+    "Azul Noche|L": 5,
+    "Azul Noche|M": 5,
+    "Azul Noche|S": 5,
+    "Chocolate|XS": 5,
+    "Azul Noche|XS": 5
+   },
+   "imagenes": {
+    "Azul Noche": "prendas/top_halter_seamless__azul-noche.webp",
+    "Chocolate": "prendas/top_halter_seamless__chocolate.webp",
+    "Blanco": "prendas/top_halter_seamless__blanco.webp"
+   },
+   "ancho": 581,
+   "alto": 760,
+   "tiene_mangas": false,
+   "puntos": {
+    "collar_top_mid": [
+     289.8,
+     6.9
+    ],
+    "collar_top_l": [
+     199.3,
+     21.8
+    ],
+    "collar_top_r": [
+     380.3,
+     21.8
+    ],
+    "collar_tip_l": [
+     216.3,
+     108.2
+    ],
+    "collar_tip_r": [
+     363.4,
+     108.2
+    ],
+    "neck_v": [
+     289.8,
+     126.1
+    ],
+    "chest_mid": [
+     289.8,
+     290.1
+    ],
+    "torso_mid": [
+     289.8,
+     491.3
+    ],
+    "hem_mid": [
+     289.8,
+     752.1
+    ],
+    "shoulder_l": [
+     120.1,
+     155.9
+    ],
+    "shoulder_r": [
+     459.5,
+     155.9
+    ],
+    "sleeve_top_l": [
+     108.7,
+     193.2
+    ],
+    "sleeve_top_r": [
+     470.9,
+     193.2
+    ],
+    "bicep_out_l": [
+     103.1,
+     230.5
+    ],
+    "bicep_out_r": [
+     476.5,
+     230.5
+    ],
+    "bicep_in_l": [
+     91.8,
+     267.7
+    ],
+    "bicep_in_r": [
+     487.8,
+     267.7
+    ],
+    "sleeve_cuff_out_l": [
+     91.8,
+     267.7
+    ],
+    "sleeve_cuff_out_r": [
+     487.8,
+     267.7
+    ],
+    "sleeve_cuff_in_l": [
+     91.8,
+     267.7
+    ],
+    "sleeve_cuff_in_r": [
+     487.8,
+     267.7
+    ],
+    "armpit_l": [
+     74.8,
+     290.1
+    ],
+    "armpit_r": [
+     504.8,
+     290.1
+    ],
+    "underbust_l": [
+     80.5,
+     379.5
+    ],
+    "underbust_r": [
+     499.2,
+     379.5
+    ],
+    "waist_l": [
+     86.1,
+     491.3
+    ],
+    "waist_r": [
+     493.5,
+     491.3
+    ],
+    "high_hip_l": [
+     80.5,
+     618.0
+    ],
+    "high_hip_r": [
+     499.2,
+     618.0
+    ],
+    "hem_l": [
+     74.8,
+     752.1
+    ],
+    "hem_r": [
+     504.8,
+     752.1
+    ]
+   }
+  },
+  {
+   "codigo": "top_halter_escote_v",
+   "id_prenda": 15,
+   "sku": "VV-0006",
+   "nombre": "Top Halter Escote V",
+   "descripcion": "Top halter con escote en V cruzado, frunce bajo el busto y tela fluida con elastano. Un básico sensual y atemporal.",
+   "categoria": "Tops",
+   "genero": "mujer",
+   "calce": "entallado",
+   "precio": 25900,
+   "colores": [
+    {
+     "nombre": "Negro",
+     "hex": "#1A1A1A",
+     "es_foto": true
+    },
+    {
+     "nombre": "Bordó",
+     "hex": "#5A1A24",
+     "es_foto": false
+    },
+    {
+     "nombre": "Crema",
+     "hex": "#ECE7DA",
+     "es_foto": false
+    }
+   ],
+   "talles": [
+    "XS",
+    "S",
+    "M",
+    "L"
+   ],
+   "medidas_talles": {
+    "XS": {
+     "pecho": 78,
+     "cintura": 62,
+     "cadera": 82,
+     "hombros": 32,
+     "largo": 44
+    },
+    "S": {
+     "pecho": 82,
+     "cintura": 66,
+     "cadera": 86,
+     "hombros": 33,
+     "largo": 46
+    },
+    "M": {
+     "pecho": 86,
+     "cintura": 70,
+     "cadera": 90,
+     "hombros": 34,
+     "largo": 48
+    },
+    "L": {
+     "pecho": 92,
+     "cintura": 76,
+     "cadera": 96,
+     "hombros": 36,
+     "largo": 50
+    }
+   },
+   "stock": {
+    "Crema|L": 5,
+    "Crema|M": 5,
+    "Crema|S": 5,
+    "Negro|L": 5,
+    "Negro|M": 5,
+    "Negro|S": 5,
+    "Bordó|L": 5,
+    "Bordó|M": 5,
+    "Bordó|S": 5,
+    "Crema|XS": 5,
+    "Negro|XS": 5,
+    "Bordó|XS": 5
+   },
+   "imagenes": {
+    "Negro": "prendas/top_halter_escote_v__negro.webp",
+    "Bordó": "prendas/top_halter_escote_v__bordo.webp",
+    "Crema": "prendas/top_halter_escote_v__crema.webp"
+   },
+   "ancho": 440,
+   "alto": 760,
+   "tiene_mangas": false,
+   "puntos": {
+    "collar_top_mid": [
+     219.7,
+     5.3
+    ],
+    "collar_top_l": [
+     150.8,
+     20.2
+    ],
+    "collar_top_r": [
+     288.5,
+     20.2
+    ],
+    "collar_tip_l": [
+     163.7,
+     107.2
+    ],
+    "collar_tip_r": [
+     275.6,
+     107.2
+    ],
+    "neck_v": [
+     219.7,
+     125.2
+    ],
+    "chest_mid": [
+     219.7,
+     290.1
+    ],
+    "torso_mid": [
+     219.7,
+     492.4
+    ],
+    "hem_mid": [
+     219.7,
+     754.7
+    ],
+    "shoulder_l": [
+     90.6,
+     155.2
+    ],
+    "shoulder_r": [
+     348.8,
+     155.2
+    ],
+    "sleeve_top_l": [
+     82.0,
+     192.6
+    ],
+    "sleeve_top_r": [
+     357.4,
+     192.6
+    ],
+    "bicep_out_l": [
+     77.7,
+     230.1
+    ],
+    "bicep_out_r": [
+     361.7,
+     230.1
+    ],
+    "bicep_in_l": [
+     69.1,
+     267.6
+    ],
+    "bicep_in_r": [
+     370.3,
+     267.6
+    ],
+    "sleeve_cuff_out_l": [
+     69.1,
+     267.6
+    ],
+    "sleeve_cuff_out_r": [
+     370.3,
+     267.6
+    ],
+    "sleeve_cuff_in_l": [
+     69.1,
+     267.6
+    ],
+    "sleeve_cuff_in_r": [
+     370.3,
+     267.6
+    ],
+    "armpit_l": [
+     56.1,
+     290.1
+    ],
+    "armpit_r": [
+     383.2,
+     290.1
+    ],
+    "underbust_l": [
+     60.4,
+     380.0
+    ],
+    "underbust_r": [
+     378.9,
+     380.0
+    ],
+    "waist_l": [
+     64.8,
+     492.4
+    ],
+    "waist_r": [
+     374.6,
+     492.4
+    ],
+    "high_hip_l": [
+     60.4,
+     619.8
+    ],
+    "high_hip_r": [
+     378.9,
+     619.8
+    ],
+    "hem_l": [
+     56.1,
+     754.7
+    ],
+    "hem_r": [
+     383.2,
+     754.7
+    ]
+   }
+  },
+  {
+   "codigo": "top_asimetrico_animal_print",
+   "id_prenda": 16,
+   "sku": "VV-0007",
+   "nombre": "Top Asimétrico Animal Print",
+   "descripcion": "Top de un hombro con estampa leopardo y fruncido lateral que estiliza la cintura. Tendencia statement para salir.",
+   "categoria": "Tops",
+   "genero": "mujer",
+   "calce": "entallado",
+   "precio": 27900,
+   "colores": [
+    {
+     "nombre": "Leopardo",
+     "hex": "#8B6A45",
+     "es_foto": true
+    }
+   ],
+   "talles": [
+    "XS",
+    "S",
+    "M",
+    "L"
+   ],
+   "medidas_talles": {
+    "XS": {
+     "pecho": 78,
+     "cintura": 62,
+     "cadera": 82,
+     "hombros": 32,
+     "largo": 44
+    },
+    "S": {
+     "pecho": 82,
+     "cintura": 66,
+     "cadera": 86,
+     "hombros": 33,
+     "largo": 46
+    },
+    "M": {
+     "pecho": 86,
+     "cintura": 70,
+     "cadera": 90,
+     "hombros": 34,
+     "largo": 48
+    },
+    "L": {
+     "pecho": 92,
+     "cintura": 76,
+     "cadera": 96,
+     "hombros": 36,
+     "largo": 50
+    }
+   },
+   "stock": {
+    "Leopardo|L": 5,
+    "Leopardo|M": 5,
+    "Leopardo|S": 5,
+    "Leopardo|XS": 5
+   },
+   "imagenes": {
+    "Leopardo": "prendas/top_asimetrico_animal_print__leopardo.webp"
+   },
+   "ancho": 543,
+   "alto": 564,
+   "tiene_mangas": true,
+   "puntos": {
+    "collar_top_mid": [
+     271.0,
+     24.0
+    ],
+    "collar_top_l": [
+     186.5,
+     18.0
+    ],
+    "collar_top_r": [
+     355.5,
+     18.0
+    ],
+    "collar_tip_l": [
+     202.4,
+     98.7
+    ],
+    "collar_tip_r": [
+     339.6,
+     98.7
+    ],
+    "neck_v": [
+     271.0,
+     111.8
+    ],
+    "chest_mid": [
+     271.0,
+     215.6
+    ],
+    "torso_mid": [
+     271.0,
+     363.9
+    ],
+    "hem_mid": [
+     271.0,
+     556.0
+    ],
+    "shoulder_l": [
+     107.3,
+     61.9
+    ],
+    "shoulder_r": [
+     434.7,
+     61.9
+    ],
+    "sleeve_top_l": [
+     33.4,
+     127.8
+    ],
+    "sleeve_top_r": [
+     508.6,
+     127.8
+    ],
+    "bicep_out_l": [
+     17.6,
+     182.7
+    ],
+    "bicep_out_r": [
+     524.4,
+     182.7
+    ],
+    "bicep_in_l": [
+     112.6,
+     237.6
+    ],
+    "bicep_in_r": [
+     429.4,
+     237.6
+    ],
+    "sleeve_cuff_out_l": [
+     7.0,
+     237.6
+    ],
+    "sleeve_cuff_out_r": [
+     535.0,
+     237.6
+    ],
+    "sleeve_cuff_in_l": [
+     91.5,
+     259.5
+    ],
+    "sleeve_cuff_in_r": [
+     450.5,
+     259.5
+    ],
+    "armpit_l": [
+     139.0,
+     215.6
+    ],
+    "armpit_r": [
+     403.0,
+     215.6
+    ],
+    "underbust_l": [
+     141.6,
+     281.5
+    ],
+    "underbust_r": [
+     400.4,
+     281.5
+    ],
+    "waist_l": [
+     144.3,
+     363.9
+    ],
+    "waist_r": [
+     397.7,
+     363.9
+    ],
+    "high_hip_l": [
+     141.6,
+     457.2
+    ],
+    "high_hip_r": [
+     400.4,
+     457.2
+    ],
+    "hem_l": [
+     139.0,
+     556.0
+    ],
+    "hem_r": [
+     403.0,
+     556.0
+    ]
+   }
+  },
+  {
+   "codigo": "top_halter_lunares",
+   "id_prenda": 17,
+   "sku": "VV-0008",
+   "nombre": "Top Halter Lunares Retro",
+   "descripcion": "Top estilo pin-up con lunares, escote corazón, lazo al cuello y volado en el ruedo. Romántico y retro.",
+   "categoria": "Tops",
+   "genero": "mujer",
+   "calce": "entallado",
+   "precio": 26900,
+   "colores": [
+    {
+     "nombre": "Blanco con Lunares",
+     "hex": "#F4F4F2",
+     "es_foto": true
+    }
+   ],
+   "talles": [
+    "XS",
+    "S",
+    "M",
+    "L"
+   ],
+   "medidas_talles": {
+    "XS": {
+     "pecho": 78,
+     "cintura": 62,
+     "cadera": 82,
+     "hombros": 32,
+     "largo": 44
+    },
+    "S": {
+     "pecho": 82,
+     "cintura": 66,
+     "cadera": 86,
+     "hombros": 33,
+     "largo": 46
+    },
+    "M": {
+     "pecho": 86,
+     "cintura": 70,
+     "cadera": 90,
+     "hombros": 34,
+     "largo": 48
+    },
+    "L": {
+     "pecho": 92,
+     "cintura": 76,
+     "cadera": 96,
+     "hombros": 36,
+     "largo": 50
+    }
+   },
+   "stock": {
+    "Blanco con Lunares|L": 5,
+    "Blanco con Lunares|M": 5,
+    "Blanco con Lunares|S": 5,
+    "Blanco con Lunares|XS": 5
+   },
+   "imagenes": {
+    "Blanco con Lunares": "prendas/top_halter_lunares__blanco-con-lunares.webp"
+   },
+   "ancho": 419,
+   "alto": 760,
+   "tiene_mangas": false,
+   "puntos": {
+    "collar_top_mid": [
+     209.1,
+     8.4
+    ],
+    "collar_top_l": [
+     144.1,
+     20.0
+    ],
+    "collar_top_r": [
+     274.1,
+     20.0
+    ],
+    "collar_tip_l": [
+     156.3,
+     110.2
+    ],
+    "collar_tip_r": [
+     261.9,
+     110.2
+    ],
+    "neck_v": [
+     209.1,
+     128.1
+    ],
+    "chest_mid": [
+     209.1,
+     289.4
+    ],
+    "torso_mid": [
+     209.1,
+     491.4
+    ],
+    "hem_mid": [
+     209.1,
+     753.3
+    ],
+    "shoulder_l": [
+     87.2,
+     154.7
+    ],
+    "shoulder_r": [
+     331.0,
+     154.7
+    ],
+    "sleeve_top_l": [
+     79.0,
+     192.1
+    ],
+    "sleeve_top_r": [
+     339.2,
+     192.1
+    ],
+    "bicep_out_l": [
+     75.0,
+     229.5
+    ],
+    "bicep_out_r": [
+     343.2,
+     229.5
+    ],
+    "bicep_in_l": [
+     66.8,
+     266.9
+    ],
+    "bicep_in_r": [
+     351.4,
+     266.9
+    ],
+    "sleeve_cuff_out_l": [
+     66.8,
+     266.9
+    ],
+    "sleeve_cuff_out_r": [
+     351.4,
+     266.9
+    ],
+    "sleeve_cuff_in_l": [
+     66.8,
+     266.9
+    ],
+    "sleeve_cuff_in_r": [
+     351.4,
+     266.9
+    ],
+    "armpit_l": [
+     54.7,
+     289.4
+    ],
+    "armpit_r": [
+     363.6,
+     289.4
+    ],
+    "underbust_l": [
+     58.7,
+     379.2
+    ],
+    "underbust_r": [
+     359.5,
+     379.2
+    ],
+    "waist_l": [
+     62.8,
+     491.4
+    ],
+    "waist_r": [
+     355.4,
+     491.4
+    ],
+    "high_hip_l": [
+     58.7,
+     618.6
+    ],
+    "high_hip_r": [
+     359.5,
+     618.6
+    ],
+    "hem_l": [
+     54.7,
+     753.3
+    ],
+    "hem_r": [
+     363.6,
+     753.3
+    ]
+   }
+  },
+  {
+   "codigo": "top_asimetrico_negro",
+   "id_prenda": 2,
+   "sku": "VV-0013",
+   "nombre": "Top Asimétrico Drapeado Negro",
+   "descripcion": "Exclusivo diseño de alta costura con escote halter drapeado, un hombro al descubierto y elegante fular lateral en satén negro profundo.",
+   "categoria": "Tops",
+   "genero": "mujer",
+   "calce": "entallado",
+   "precio": 34000,
+   "colores": [
+    {
+     "nombre": "Negro",
+     "hex": "#1A1A1A",
+     "es_foto": true
+    },
+    {
+     "nombre": "Bordó",
+     "hex": "#5A1A24",
+     "es_foto": false
+    }
+   ],
+   "talles": [
+    "S",
+    "M",
+    "L"
+   ],
+   "medidas_talles": {
+    "S": {
+     "pecho": 86,
+     "cintura": 66,
+     "cadera": 90,
+     "hombros": 36,
+     "largo": 76
+    },
+    "M": {
+     "pecho": 92,
+     "cintura": 72,
+     "cadera": 96,
+     "hombros": 38,
+     "largo": 79
+    },
+    "L": {
+     "pecho": 98,
+     "cintura": 78,
+     "cadera": 102,
+     "hombros": 40,
+     "largo": 82
+    }
+   },
+   "stock": {
+    "Negro|L": 5,
+    "Negro|M": 5,
+    "Negro|S": 5,
+    "Bordó|L": 5,
+    "Bordó|M": 5,
+    "Bordó|S": 5
+   },
+   "imagenes": {
+    "Negro": "prendas/top_asimetrico_negro__negro.webp",
+    "Bordó": "prendas/top_asimetrico_negro__bordo.webp"
+   },
+   "ancho": 255,
+   "alto": 760,
+   "tiene_mangas": false,
+   "puntos": {
+    "collar_top_mid": [
+     127.3,
+     4.7
+    ],
+    "collar_top_l": [
+     88.1,
+     19.7
+    ],
+    "collar_top_r": [
+     166.6,
+     19.7
+    ],
+    "collar_tip_l": [
+     95.4,
+     106.7
+    ],
+    "collar_tip_r": [
+     159.2,
+     106.7
+    ],
+    "neck_v": [
+     127.3,
+     124.7
+    ],
+    "chest_mid": [
+     127.3,
+     289.6
+    ],
+    "torso_mid": [
+     127.3,
+     492.1
+    ],
+    "hem_mid": [
+     127.3,
+     754.5
+    ],
+    "shoulder_l": [
+     53.7,
+     154.7
+    ],
+    "shoulder_r": [
+     200.9,
+     154.7
+    ],
+    "sleeve_top_l": [
+     48.8,
+     192.2
+    ],
+    "sleeve_top_r": [
+     205.8,
+     192.2
+    ],
+    "bicep_out_l": [
+     46.4,
+     229.6
+    ],
+    "bicep_out_r": [
+     208.2,
+     229.6
+    ],
+    "bicep_in_l": [
+     41.5,
+     267.1
+    ],
+    "bicep_in_r": [
+     213.2,
+     267.1
+    ],
+    "sleeve_cuff_out_l": [
+     41.5,
+     267.1
+    ],
+    "sleeve_cuff_out_r": [
+     213.2,
+     267.1
+    ],
+    "sleeve_cuff_in_l": [
+     41.5,
+     267.1
+    ],
+    "sleeve_cuff_in_r": [
+     213.2,
+     267.1
+    ],
+    "armpit_l": [
+     34.1,
+     289.6
+    ],
+    "armpit_r": [
+     220.5,
+     289.6
+    ],
+    "underbust_l": [
+     36.6,
+     379.6
+    ],
+    "underbust_r": [
+     218.1,
+     379.6
+    ],
+    "waist_l": [
+     39.0,
+     492.1
+    ],
+    "waist_r": [
+     215.6,
+     492.1
+    ],
+    "high_hip_l": [
+     36.6,
+     619.5
+    ],
+    "high_hip_r": [
+     218.1,
+     619.5
+    ],
+    "hem_l": [
+     34.1,
+     754.5
+    ],
+    "hem_r": [
+     220.5,
+     754.5
+    ]
+   }
+  },
+  {
+   "codigo": "top_satin",
+   "id_prenda": 8,
+   "sku": "VV-0014",
+   "nombre": "Top Satinado Champagne",
+   "descripcion": "Exclusivo top halter de satén de seda drapeado con cuello alto de alta costura.",
+   "categoria": "Tops",
+   "genero": "mujer",
+   "calce": "entallado",
+   "precio": 24000,
+   "colores": [
+    {
+     "nombre": "Champagne",
+     "hex": "#D8C3A5",
+     "es_foto": true
+    },
+    {
+     "nombre": "Rosa Empolvado",
+     "hex": "#D9A7A0",
+     "es_foto": false
+    }
+   ],
+   "talles": [
+    "S",
+    "M"
+   ],
+   "medidas_talles": {
+    "S": {
+     "pecho": 86,
+     "cintura": 68,
+     "cadera": 90,
+     "hombros": 36,
+     "largo": 62
+    },
+    "M": {
+     "pecho": 92,
+     "cintura": 74,
+     "cadera": 96,
+     "hombros": 38,
+     "largo": 65
+    }
+   },
+   "stock": {
+    "Champagne|M": 5,
+    "Champagne|S": 5,
+    "Rosa Empolvado|M": 5,
+    "Rosa Empolvado|S": 5
+   },
+   "imagenes": {
+    "Champagne": "prendas/top_satin__champagne.webp",
+    "Rosa Empolvado": "prendas/top_satin__rosa-empolvado.webp"
+   },
+   "ancho": 353,
+   "alto": 631,
+   "tiene_mangas": false,
+   "puntos": {
+    "collar_top_mid": [
+     176.5,
+     6.0
+    ],
+    "collar_top_l": [
+     122.3,
+     18.3
+    ],
+    "collar_top_r": [
+     230.7,
+     18.3
+    ],
+    "collar_tip_l": [
+     132.4,
+     89.9
+    ],
+    "collar_tip_r": [
+     220.6,
+     89.9
+    ],
+    "neck_v": [
+     176.5,
+     104.7
+    ],
+    "chest_mid": [
+     176.5,
+     240.5
+    ],
+    "torso_mid": [
+     176.5,
+     407.1
+    ],
+    "hem_mid": [
+     176.5,
+     623.0
+    ],
+    "shoulder_l": [
+     74.8,
+     129.4
+    ],
+    "shoulder_r": [
+     278.2,
+     129.4
+    ],
+    "sleeve_top_l": [
+     68.0,
+     160.2
+    ],
+    "sleeve_top_r": [
+     285.0,
+     160.2
+    ],
+    "bicep_out_l": [
+     64.6,
+     191.1
+    ],
+    "bicep_out_r": [
+     288.4,
+     191.1
+    ],
+    "bicep_in_l": [
+     57.9,
+     221.9
+    ],
+    "bicep_in_r": [
+     295.1,
+     221.9
+    ],
+    "sleeve_cuff_out_l": [
+     57.9,
+     221.9
+    ],
+    "sleeve_cuff_out_r": [
+     295.1,
+     221.9
+    ],
+    "sleeve_cuff_in_l": [
+     57.9,
+     221.9
+    ],
+    "sleeve_cuff_in_r": [
+     295.1,
+     221.9
+    ],
+    "armpit_l": [
+     47.7,
+     240.5
+    ],
+    "armpit_r": [
+     305.3,
+     240.5
+    ],
+    "underbust_l": [
+     51.1,
+     314.5
+    ],
+    "underbust_r": [
+     301.9,
+     314.5
+    ],
+    "waist_l": [
+     54.5,
+     407.1
+    ],
+    "waist_r": [
+     298.5,
+     407.1
+    ],
+    "high_hip_l": [
+     51.1,
+     511.9
+    ],
+    "high_hip_r": [
+     301.9,
+     511.9
+    ],
+    "hem_l": [
+     47.7,
+     623.0
+    ],
+    "hem_r": [
+     305.3,
+     623.0
+    ]
+   }
+  }
+ ]
+}

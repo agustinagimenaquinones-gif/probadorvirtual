@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Vestidor Virtual</title>
+  <meta name="description" content="Probador Virtual Inteligente: elegí una prenda, probátela con la cámara y comprala.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Playfair+Display:wght@600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/estilos.css">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath fill='%23D98880' d='M22 6l10 6 10-6 16 10-7 12-6-3v33H19V25l-6 3-7-12z'/%3E%3C/svg%3E">
+</head>
+<body>
+  <header class="encabezado">
+    <a class="marca" href="./">Vestidor <span>Virtual</span></a>
+    <div class="acciones-encabezado">
+      <button class="boton boton-claro boton-chico" id="boton-cuenta" type="button">Mi cuenta</button>
+    </div>
+  </header>
+
+  <main>
+    <section class="portada">
+      <h1>Probátelo antes de comprarlo</h1>
+      <p>Elegí una prenda, mirá cómo te queda con la cámara y comprala en tu talle. Las prendas se adaptan a tu cuerpo en tiempo real.</p>
+      <div class="estado-tienda" id="estado-tienda">Cargando el catálogo…</div>
+    </section>
+
+    <nav class="filtros" id="filtros" aria-label="Filtrar por categoría"></nav>
+    <section class="grilla" id="grilla" aria-live="polite"></section>
+  </main>
+
+  <footer class="pie">Probador Virtual Inteligente · Instituto Crecer · Ciencia de Datos e IA</footer>
+
+  <!-- Detalle de una prenda -->
+  <dialog id="dialogo-prenda" aria-labelledby="titulo-prenda">
+    <div class="dialogo-cuerpo" id="detalle-prenda"></div>
+  </dialog>
+
+  <!-- Cuenta del cliente -->
+  <dialog id="dialogo-cuenta" aria-labelledby="titulo-cuenta">
+    <div class="dialogo-cuerpo" id="detalle-cuenta"></div>
+  </dialog>
+
+  <!-- Compra -->
+  <dialog id="dialogo-compra" aria-labelledby="titulo-compra">
+    <div class="dialogo-cuerpo" id="detalle-compra"></div>
+  </dialog>
+
+  <script src="js/comun.js"></script>
+  <script src="js/tienda.js"></script>
+</body>
+</html>

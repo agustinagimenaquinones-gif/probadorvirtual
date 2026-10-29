@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Probador Virtual</title>
+  <meta name="description" content="Probate las prendas con la cámara: se adaptan a tu cuerpo en tiempo real.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Playfair+Display:wght@600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/estilos.css">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath fill='%23D98880' d='M22 6l10 6 10-6 16 10-7 12-6-3v33H19V25l-6 3-7-12z'/%3E%3C/svg%3E">
+</head>
+<body class="probador">
+  <header class="encabezado">
+    <a class="marca" href="./" id="volver">Vestidor <span>Virtual</span></a>
+    <div class="acciones-encabezado">
+      <span class="nombre-prenda" id="nombre-prenda"></span>
+      <span id="precio-prenda"></span>
+    </div>
+  </header>
+
+  <section class="escenario">
+    <video id="video" playsinline muted></video>
+    <canvas id="lienzo" aria-label="Imagen de la cámara con la prenda puesta"></canvas>
+    <div class="mensaje-camara" id="mensaje" role="status">Preparando el probador…</div>
+  </section>
+
+  <section class="panel-probador" aria-label="Controles del probador">
+    <button class="boton boton-claro boton-chico" type="button" id="anterior" aria-label="Prenda anterior">‹</button>
+    <select id="elegir-prenda" aria-label="Prenda"></select>
+    <button class="boton boton-claro boton-chico" type="button" id="siguiente" aria-label="Prenda siguiente">›</button>
+    <span class="grupo-titulo">Color</span><select id="elegir-color" aria-label="Color"></select>
+    <span class="grupo-titulo">Talle</span><select id="elegir-talle" aria-label="Talle"></select>
+    <button class="boton boton-claro boton-chico" type="button" id="menos" aria-label="Más ajustada">−</button>
+    <button class="boton boton-claro boton-chico" type="button" id="mas" aria-label="Más suelta">+</button>
+    <button class="boton boton-claro boton-chico" type="button" id="silueta" aria-pressed="true">Ajuste a la silueta</button>
+    <button class="boton boton-claro boton-chico" type="button" id="foto">Foto</button>
+    <button class="boton boton-dorado boton-chico" type="button" id="comprar">Comprar</button>
+    <a class="boton boton-chico" href="./" id="volver-tienda">Volver a la tienda</a>
+  </section>
+
+  <script src="js/comun.js"></script>
+  <script src="js/malla.js"></script>
+  <script type="module" src="js/probador.js"></script>
+</body>
+</html>

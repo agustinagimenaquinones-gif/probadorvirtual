@@ -1,0 +1,13 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "outputDirectory": "public",
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api/index" }
+  ],
+  "headers": [
+    {
+      "source": "/probador.html",
+      "headers": [{ "key": "Permissions-Policy", "value": "camera=(self)" }]
+    }
+  ]
+}
