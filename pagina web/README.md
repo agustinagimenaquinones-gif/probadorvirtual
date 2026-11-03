@@ -87,7 +87,7 @@ Después abrí <http://localhost:8000>.
 
 ```
 pagina web/
-├── vercel.json          rutas (/api/* → api/index.py) y la carpeta pública
+├── vercel.json          carpeta pública y permiso de cámara
 ├── requirements.txt     paquetes de Python del backend (FastAPI y psycopg)
 ├── .env.example         la variable que hay que cargar en Vercel
 ├── servidor_local.py    servidor para probar en la compu
