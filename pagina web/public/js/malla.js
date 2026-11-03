@@ -52,11 +52,11 @@ const Malla = (() => {
   function geometriaCorporal(pts, vis, ancho, alto) {
     let [shL, shR, elL, elR, wrL, wrR, hiL, hiR] =
       [pts.sh_left, pts.sh_right, pts.elb_left, pts.elb_right, pts.wri_left, pts.wri_right, pts.hip_left, pts.hip_right];
-    let visElL = vis.elb_left, visElR = vis.elb_right;
+    let visElL = vis.elb_left, visElR = vis.elb_right, visWrL = vis.wri_left, visWrR = vis.wri_right;
     // El hombro de la izquierda de la pantalla es el de menor X
     if (shR[0] <= shL[0]) {
       [shL, shR, elL, elR, wrL, wrR, hiL, hiR] = [shR, shL, elR, elL, wrR, wrL, hiR, hiL];
-      [visElL, visElR] = [visElR, visElL];
+      [visElL, visElR, visWrL, visWrR] = [visElR, visElL, visWrR, visWrL];
     }
     const vSh = res(shR, shL);
     const distSh = Math.max(15, largo(vSh));
@@ -117,7 +117,7 @@ const Malla = (() => {
       menton = sum(boca, por(res(boca, pts.nose), 1.7));
     }
     return {
-      shL, shR, elL, elR, wrL, wrR, cuello, distSh, distTorso, uSh, uUp, uDown, uTorso, uHip,
+      shL, shR, elL, elR, wrL, wrR, visElL, visElR, visWrL, visWrR, cuello, distSh, distTorso, uSh, uUp, uDown, uTorso, uHip,
       uArmL, uArmR, uCuffL, uCuffR, caderasVisibles, medioCuello, medioCara, menton, nariz: pts.nose,
       brazoArribaL: elevacion(shL, elL), brazoArribaR: elevacion(shR, elR),
     };
@@ -128,7 +128,8 @@ const Malla = (() => {
     if (!src.armpit_l || !src.armpit_r || !src.hem_mid) return;
     const anchoSrc = Math.abs(src.armpit_r[0] - src.armpit_l[0]);
     const yAxilas = (src.armpit_l[1] + src.armpit_r[1]) * 0.5;
-    const largoSrc = src.hem_mid[1] - yAxilas;
+    // Lo que cae más abajo del ruedo (un pañuelo) no cuenta para el largo
+    const largoSrc = (src.ruedo_cuerpo || src.hem_mid)[1] - yAxilas;
     const axilas = por(sum(dst.armpit_l, dst.armpit_r), 0.5);
     const anchoDst = largo(res(dst.armpit_r, dst.armpit_l));
     const largoDst = pto(res(dst.hem_mid, axilas), uTorso);
@@ -138,6 +139,143 @@ const Malla = (() => {
     for (const [k, [x, y]] of Object.entries(src)) {
       if (dst[k]) dst[k] = S(axilas, por(uLat, (x - cx) * ex), por(uTorso, (y - yAxilas) * ey));
     }
+  }
+
+  // Top halter: arriba, la tela es mucho más angosta que el pecho (una tira que rodea el cuello)
+  function esCuelloHalter(src) {
+    if (!src.collar_top_l || !src.collar_top_r || !src.armpit_l || !src.armpit_r) return false;
+    const pecho = Math.abs(src.armpit_r[0] - src.armpit_l[0]);
+    return pecho > 1 && Math.abs(src.collar_top_r[0] - src.collar_top_l[0]) / pecho < 0.60;
+  }
+
+  // La tira toma el ancho y la posición del cuello, y esa corrección se apaga hasta la axila:
+  // la tela sigue siendo una sola. Llega hasta poco antes del mentón.
+  function anclarCuelloHalter(dst, src, g, uLat, anchoCuello, alturaCuello) {
+    const yArriba = src.collar_top_mid[1];
+    const yAxila = (src.armpit_l[1] + src.armpit_r[1]) * 0.5;
+    const medioSrc = Math.abs(src.collar_top_r[0] - src.collar_top_l[0]) * 0.5;
+    const anchoSrc = Math.abs(src.armpit_r[0] - src.armpit_l[0]);
+    if (yAxila - yArriba < 1 || medioSrc < 1 || anchoSrc < 1) return;
+    const escalaTorso = largo(res(dst.armpit_r, dst.armpit_l)) / anchoSrc;
+    const escalaCuello = anchoCuello / medioSrc;
+    const menton = g.menton || (g.nariz ? sum(g.nariz, por(res(g.cuello, g.nariz), 0.55)) : null);
+    const hastaMenton = menton ? pto(res(menton, g.cuello), g.uUp) : alturaCuello * 1.35;
+    const destino = sum(g.cuello, por(g.uUp, Math.min(alturaCuello * 1.35, Math.max(alturaCuello * 0.5, hastaMenton * 0.92))));
+    const corrimiento = res(destino, dst.collar_top_mid);
+    for (const k of ["collar_top_mid", "collar_top_l", "collar_top_r", "collar_tip_l", "collar_tip_r", "neck_v",
+      "shoulder_l", "shoulder_r", "chest_mid"]) {
+      if (!src[k] || !dst[k]) continue;
+      let t = clip((yAxila - src[k][1]) / (yAxila - yArriba), 0, 1);
+      t = t * t * (3 - 2 * t);
+      dst[k] = S(dst[k], por(corrimiento, t), por(uLat, (src[k][0] - src.collar_top_mid[0]) * (escalaCuello - escalaTorso) * t));
+    }
+  }
+
+  // Altura de cada medición (0 = base del cuello, 1 = caderas) y límites del medio ancho,
+  // en relación con los hombros: lo que se sale del rango es ruido de la silueta
+  const NIVELES_MEDICION = {
+    pecho: [0.30, 0.28, 0.72], bajoBusto: [0.46, 0.24, 0.74], cintura: [0.62, 0.22, 0.80],
+    caderaAlta: [0.82, 0.24, 0.90], cadera: [1.00, 0.26, 0.95],
+  };
+
+  function distanciaASegmento(p, a, b) {
+    const ab = res(b, a), l2 = pto(ab, ab);
+    if (l2 < 1e-6) return largo(res(p, a));
+    const t = clip(pto(res(p, a), ab) / l2, 0, 1);
+    return largo(res(p, sum(a, por(ab, t))));
+  }
+
+  // Camina desde el centro hasta salir de la silueta o tocar un brazo: con los brazos al
+  // costado la silueta une brazo y torso, y si no se mediría "torso + brazo"
+  function escanearBorde(mascara, escala, origen, dir, largoMax, brazos, radioBrazo) {
+    const paso = Math.max(1.5, largoMax / 120);
+    let fuera = 0;
+    for (let t = 0; t < largoMax; t += paso) {
+      const p = sum(origen, por(dir, t));
+      // La silueta está sin espejar y los puntos, espejados
+      const x = mascara.ancho - 1 - Math.round(p[0] * escala[0]), y = Math.round(p[1] * escala[1]);
+      const adentro = x >= 0 && x < mascara.ancho && y >= 0 && y < mascara.alto
+        && mascara.valores[y * mascara.ancho + x] > 0.5
+        && !brazos.some(([a, b]) => distanciaASegmento(p, a, b) < radioBrazo);
+      if (adentro) { fuera = 0; continue; }
+      if (t === 0) return null;  // el centro del torso no está en la silueta
+      if (++fuera >= 2) return t - paso;
+    }
+    return null;  // no se encontró el borde: la medida no es confiable
+  }
+
+  /**
+   * Tramos de los brazos que se pueden usar. Se descarta lo que MediaPipe no ve bien y lo que
+   * cae sobre el centro del torso: ahí un punto mal ubicado borraría la tela del pecho.
+   * (Por eso, con los brazos cruzados, en la web la tela queda por delante.)
+   */
+  function tramosDeBrazos(g) {
+    const lat = latDelTorso(g);
+    const afuera = (p) => Math.abs(pto(res(p, g.cuello), lat)) >= g.distSh * 0.38;
+    const tramos = [];
+    for (const [sh, el, wr, visEl, visWr] of [[g.shL, g.elL, g.wrL, g.visElL, g.visWrL], [g.shR, g.elR, g.wrR, g.visElR, g.visWrR]]) {
+      if (visEl < 0.5 || !afuera(el)) continue;
+      tramos.push([sh, el]);
+      if (visWr >= 0.5 && afuera(wr)) tramos.push([el, wr]);
+    }
+    return tramos;
+  }
+
+  /** Medios anchos del cuerpo (izquierda y derecha de la pantalla) según la silueta de MediaPipe. */
+  function medirSilueta(g, mascara, W, H) {
+    const escala = [mascara.ancho / W, mascara.alto / H];
+    const lat = latDelTorso(g);
+    const brazos = tramosDeBrazos(g);
+    const medidas = {};
+    for (const [nombre, [f, min, max]] of Object.entries(NIVELES_MEDICION)) {
+      if (nombre === "cadera" && !g.caderasVisibles) continue;
+      const centro = sum(g.cuello, por(g.uTorso, g.distTorso * f));
+      medidas[nombre] = [-1, 1].map((lado) => {
+        const d = escanearBorde(mascara, escala, centro, por(lat, lado), g.distSh * 1.3, brazos, g.distSh * 0.09);
+        return d === null ? null : clip(d, min * g.distSh, max * g.distSh);
+      });
+    }
+    return medidas;
+  }
+
+  const latDelTorso = (g) => {
+    const lat = [-g.uTorso[1], g.uTorso[0]];
+    return pto(lat, g.uSh) < 0 ? por(lat, -1) : lat;
+  };
+
+  // De las medidas del cuerpo a los medios anchos de la prenda, según el talle y el calce
+  function mediosDesdeSilueta(medidas, holgura, calce, distSh) {
+    const r = { pecho: [0, 0], bajoBusto: [0, 0], cintura: [0, 0], caderaAlta: [0, 0], ruedo: [0, 0] };
+    const de = (nombre, i) => {
+      const par = medidas[nombre];
+      return par ? (par[i] ?? par[1 - i]) : null;
+    };
+    for (const i of [0, 1]) {
+      const pecho = de("pecho", i) ?? distSh * 0.44;
+      const cintura = de("cintura", i) ?? pecho * 0.92;
+      const cadera = de("cadera", i);
+      let cinturaPrenda = cintura, holguraPecho = holgura;
+      if (calce === "holgado") {
+        cinturaPrenda = Math.max(cintura, pecho, (cadera ?? 0) * 0.98);
+        holguraPecho = holgura * 1.04;
+      } else if (calce === "regular") {
+        cinturaPrenda = Math.max(cintura, 0.5 * (pecho + (cadera ?? pecho)) * 0.93);
+      }
+      const baseRuedo = Math.max(cinturaPrenda, cadera ?? cinturaPrenda * 1.04);
+      const bajoBusto = de("bajoBusto", i) ?? 0.5 * (pecho + cintura);
+      const caderaAlta = de("caderaAlta", i) ?? 0.5 * (cintura + (cadera ?? cintura));
+      r.pecho[i] = pecho * holguraPecho;
+      r.cintura[i] = cinturaPrenda * holgura;
+      r.ruedo[i] = baseRuedo * holgura * 1.03;
+      if (calce === "entallado") {
+        r.bajoBusto[i] = bajoBusto * holgura;
+        r.caderaAlta[i] = Math.min(Math.max(caderaAlta, cinturaPrenda) * holgura, r.ruedo[i]);
+      } else {
+        r.bajoBusto[i] = Math.max(bajoBusto, 0.5 * (pecho * holguraPecho / holgura + cinturaPrenda)) * holgura;
+        r.caderaAlta[i] = Math.min(Math.max(caderaAlta, 0.5 * (cinturaPrenda + baseRuedo)) * holgura, r.ruedo[i]);
+      }
+    }
+    return r;
   }
 
   // El cuello de la prenda abraza el cuello y conserva su forma (redondo, en V, chomba)
@@ -177,10 +315,23 @@ const Malla = (() => {
     const anchoManga = dSh * 0.26 * holgura / 1.05;
     const salidaManga = dSh * 0.08;
     const k = holgura / 1.05 * extraCalce;
-    const medio = { pecho: dSh * 0.56 * Math.max(1, extraCalce), cintura: dSh * 0.44 * k, ruedo: dSh * 0.449 * k };
-    medio.bajoBusto = (medio.pecho + medio.cintura) / 2;
-    medio.caderaAlta = (medio.cintura + medio.ruedo) / 2;
-    const hombroExtra = dSh * 0.10;
+    const ambos = (v) => [v, v];
+    let medio = { pecho: ambos(dSh * 0.56 * Math.max(1, extraCalce)), cintura: ambos(dSh * 0.44 * k), ruedo: ambos(dSh * 0.449 * k) };
+    medio.bajoBusto = ambos((medio.pecho[0] + medio.cintura[0]) / 2);
+    medio.caderaAlta = ambos((medio.cintura[0] + medio.ruedo[0]) / 2);
+    let hombroExtra = dSh * 0.10;
+    if (g.medidas && g.medidas.pecho) {
+      medio = mediosDesdeSilueta(g.medidas, holgura, calce, g.distSh);
+      hombroExtra = g.distSh * (0.10 + (holgura - 1.05) * 0.5);
+    }
+    if (!prenda.tiene_mangas) {
+      // Sin mangas se ve todo el contorno: se redondean las esquinas entre niveles
+      const orden = ["pecho", "bajoBusto", "cintura", "caderaAlta", "ruedo"];
+      const previo = orden.map(n => medio[n].slice());
+      for (let n = 1; n < orden.length - 1; n++) {
+        for (const i of [0, 1]) medio[orden[n]][i] = 0.25 * previo[n - 1][i] + 0.5 * previo[n][i] + 0.25 * previo[n + 1][i];
+      }
+    }
     const subeRuedo = Math.max(g.brazoArribaL, g.brazoArribaR) * dTorso * 0.05;
     const lateral = (m) => unit(S(por(uLat, 1 - m), por(g.uHip, m)));
     const nivel = (f) => sum(g.cuello, por(g.uTorso, dTorso * f));
@@ -205,22 +356,30 @@ const Malla = (() => {
       bicep_out_r: S(shR, por(uArmR, largoManga * 0.62), por(uCuffR, -salidaManga * 1.05)),
       bicep_in_l: S(shL, por(uArmL, largoManga * 0.60), por(uCuffL, anchoManga * 1.05)),
       bicep_in_r: S(shR, por(uArmR, largoManga * 0.60), por(uCuffR, anchoManga * 1.05)),
-      armpit_l: S(nivel(0.33), por(uLat, -medio.pecho), por(uUp, g.brazoArribaL * dTorso * 0.10)),
-      armpit_r: S(nivel(0.33), por(uLat, medio.pecho), por(uUp, g.brazoArribaR * dTorso * 0.10)),
+      armpit_l: S(nivel(0.33), por(uLat, -medio.pecho[0]), por(uUp, g.brazoArribaL * dTorso * 0.10)),
+      armpit_r: S(nivel(0.33), por(uLat, medio.pecho[1]), por(uUp, g.brazoArribaR * dTorso * 0.10)),
       chest_mid: nivel(0.36),
       torso_mid: nivel(0.68),
-      underbust_l: S(nivel(0.50), por(lateral(0.2), -medio.bajoBusto), por(uUp, g.brazoArribaL * dTorso * 0.04)),
-      underbust_r: S(nivel(0.50), por(lateral(0.2), medio.bajoBusto), por(uUp, g.brazoArribaR * dTorso * 0.04)),
-      waist_l: sum(nivel(0.68), por(lateral(0.5), -medio.cintura)),
-      waist_r: sum(nivel(0.68), por(lateral(0.5), medio.cintura)),
-      high_hip_l: S(nivel(0.86), por(lateral(0.8), -medio.caderaAlta), por(uTorso, -subeRuedo * 0.6)),
-      high_hip_r: S(nivel(0.86), por(lateral(0.8), medio.caderaAlta), por(uTorso, -subeRuedo * 0.6)),
-      hem_l: S(nivel(1.05), por(lateral(1), -medio.ruedo), por(uTorso, -subeRuedo)),
+      underbust_l: S(nivel(0.50), por(lateral(0.2), -medio.bajoBusto[0]), por(uUp, g.brazoArribaL * dTorso * 0.04)),
+      underbust_r: S(nivel(0.50), por(lateral(0.2), medio.bajoBusto[1]), por(uUp, g.brazoArribaR * dTorso * 0.04)),
+      waist_l: sum(nivel(0.68), por(lateral(0.5), -medio.cintura[0])),
+      waist_r: sum(nivel(0.68), por(lateral(0.5), medio.cintura[1])),
+      high_hip_l: S(nivel(0.86), por(lateral(0.8), -medio.caderaAlta[0]), por(uTorso, -subeRuedo * 0.6)),
+      high_hip_r: S(nivel(0.86), por(lateral(0.8), medio.caderaAlta[1]), por(uTorso, -subeRuedo * 0.6)),
+      hem_l: S(nivel(1.05), por(lateral(1), -medio.ruedo[0]), por(uTorso, -subeRuedo)),
       hem_mid: sum(nivel(1.06), por(uTorso, -subeRuedo)),
-      hem_r: S(nivel(1.05), por(lateral(1), medio.ruedo), por(uTorso, -subeRuedo)),
+      hem_r: S(nivel(1.05), por(lateral(1), medio.ruedo[1]), por(uTorso, -subeRuedo)),
     };
     if (!prenda.tiene_mangas) {
+      // La prenda se ubica entera, pero sus costados siguen en el ancho medido del cuerpo
+      const costados = ["underbust", "waist", "high_hip", "hem"].flatMap(n => [`${n}_l`, `${n}_r`]);
+      const medidos = Object.fromEntries(costados.map(k => [k, dst[k]]));
       parteAltaComoLaPrenda(dst, prenda.puntos, uLat, uTorso);
+      const axilas = por(sum(dst.armpit_l, dst.armpit_r), 0.5);
+      for (const k of costados) {
+        dst[k] = S(axilas, por(uTorso, pto(res(dst[k], axilas), uTorso)), por(uLat, pto(res(medidos[k], axilas), uLat)));
+      }
+      if (esCuelloHalter(prenda.puntos)) anclarCuelloHalter(dst, prenda.puntos, g, uLat, anchoCuello, alturaCuello);
       for (const lado of ["l", "r"]) {
         dst[`sleeve_top_${lado}`] = dst[`shoulder_${lado}`];
         for (const k of ["sleeve_cuff_out", "sleeve_cuff_in", "bicep_out", "bicep_in"]) dst[`${k}_${lado}`] = dst[`armpit_${lado}`];
@@ -228,6 +387,8 @@ const Malla = (() => {
     } else {
       escoteComoLaPrenda(dst, prenda.puntos, cuello, uSh, uTorso, anchoCuello, alturaCuello, g.distTorso);
     }
+    // El ruedo se ve curvo, como un aro alrededor del cuerpo: los costados suben un poco
+    for (const k of ["hem_l", "hem_r"]) dst[k] = sum(dst[k], por(uTorso, -g.distSh * 0.035));
     return dst;
   }
 
@@ -262,5 +423,5 @@ const Malla = (() => {
     }
   }
 
-  return { geometriaCorporal, puntosDestino, dibujarMalla };
+  return { geometriaCorporal, medirSilueta, tramosDeBrazos, latDelTorso, puntosDestino, dibujarMalla };
 })();

@@ -114,7 +114,8 @@ def dibujar_diagnostico(frame, info_anatomica, deteccion):
             cv2.circle(frame, (x, y), 7, color, 2, cv2.LINE_AA)
             cv2.putText(frame, f"{clave} {v:.2f}", (x + 9, y - 6), cv2.FONT_HERSHEY_SIMPLEX, 0.38, color, 1, cv2.LINE_AA)
     if info_anatomica:
-        for clave in ("p_sh_l", "p_sh_r", "p_hip_l", "p_hip_r", "p_neck_base"):
+        for clave in ("p_sh_l", "p_sh_r", "p_hip_l", "p_hip_r", "p_neck_base", "p_clavicula_l", "p_clavicula_r",
+                      "p_pecho_centro", "p_axila_l", "p_axila_r"):
             p = info_anatomica.get(clave)
             if p is not None:
                 cv2.circle(frame, (int(p[0]), int(p[1])), 4, (255, 200, 60), -1, cv2.LINE_AA)

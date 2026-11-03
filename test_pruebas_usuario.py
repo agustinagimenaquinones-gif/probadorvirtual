@@ -15,7 +15,7 @@ except Exception:
     pass
 
 from pose_tracker import PoseTracker
-from clothing_geometry import detectar_puntos_clave_prenda, TRIANGULOS_ESTRUCTURADOS
+from clothing_geometry import detectar_puntos_clave_prenda, TRIANGULOS_ESTRUCTURADOS, es_cuello_halter
 from clothing_warper import deformar_malla_prenda
 from body_layering import componer_prenda_con_capas
 from segmentador_pelo import SegmentadorPelo
@@ -953,8 +953,50 @@ def ejecutar_todas_las_pruebas():
     print(f"  Pelo visible sobre la prenda: {pelo_visible.mean():.0%} | otro lado sin cambios: {igual_otro_lado:.0%}")
     print("  [OK] Prueba 28 superada: el pelo largo se ve por delante de la prenda.")
 
+    # PRUEBA 29: top halter: la tira se ancla al cuello y lo acompaña sin saltos
+    print("\n[PRUEBA 29] Top halter: la tira se ancla al cuello y lo acompaña...")
+    tr_h = PoseTracker()
+    halter = next((p for p in catalogo if es_cuello_halter(p["src_puntos"])), None)
+    if halter is None:  # catálogo sin halter: una prenda armada para la prueba
+        lienzo_h = np.zeros((1000, 640, 4), np.uint8)
+        cv2.fillPoly(lienzo_h, [np.int32([(250, 0), (390, 0), (400, 90), (620, 380), (620, 999), (20, 999), (20, 380), (240, 90)])],
+                     (20, 20, 20, 255))
+        pts_h, mangas_h = detectar_puntos_clave_prenda(lienzo_h)
+        assert not mangas_h and es_cuello_halter(pts_h), "La prenda de prueba debería detectarse como halter"
+        halter = {"src_puntos": pts_h}
+    fr_h, ma_h, _, pts_h = sp.crear_persona_sintetica("reloj_de_arena")
+    z_h = dict(sp.crear_persona_sintetica.ultima_z)
+    inf_h = tr_h._calcular_geometria_corporal(pts_h, z_h, {k: 0.99 for k in pts_h}, ancho, alto)
+    tr_h.agregar_medidas(inf_h, ma_h)
+
+    def destino_halter(corrimiento_px=0.0):
+        datos = dict(inf_h)
+        datos["p_cuello"] = np.asarray(inf_h.get("p_cuello", inf_h["p_neck_base"]), np.float32) + inf_h["u_sh"] * corrimiento_px
+        return tr_h.calcular_puntos_destino_malla(datos, False, holgura_talle=holgura_de_talle("M"), calce="entallado",
+                                                  puntos_prenda=halter["src_puntos"])
+
+    dst_h = destino_halter()
+    centro_h = np.asarray(inf_h.get("p_cuello", inf_h["p_neck_base"]), np.float32)
+    tira_h = (dst_h["collar_top_l"] + dst_h["collar_top_r"]) * 0.5
+    ancho_tira = float(np.linalg.norm(dst_h["collar_top_r"] - dst_h["collar_top_l"]))
+    ancho_cuello_h = 2.0 * float(inf_h["medio_cuello"])
+    d_h = float(inf_h["dist_sh"])
+    assert abs(float((tira_h - centro_h) @ inf_h["u_sh"])) < d_h * 0.03, "La tira no quedó centrada en el cuello"
+    assert ancho_cuello_h * 0.9 <= ancho_tira <= ancho_cuello_h * 1.5, f"Ancho de la tira: {ancho_tira:.0f}px, cuello {ancho_cuello_h:.0f}px"
+    assert float((tira_h - centro_h) @ inf_h["u_up"]) > 0, "La tira debe subir por el cuello"
+    # La cabeza se corre: la tira la sigue, el ruedo no se entera y la tela no se corta
+    movido = destino_halter(20.0)
+    salto_tira = float(np.linalg.norm(movido["collar_top_mid"] - dst_h["collar_top_mid"]))
+    salto_ruedo = float(np.linalg.norm(movido["hem_mid"] - dst_h["hem_mid"]))
+    salto_axila = float(np.linalg.norm(movido["armpit_l"] - dst_h["armpit_l"]))
+    assert 18.0 <= salto_tira <= 22.0, f"La tira se movió {salto_tira:.1f}px con el cuello (20px)"
+    assert salto_ruedo < 0.5 and salto_axila < 0.5, "El torso no debe moverse con la cabeza"
+    tr_h.cerrar()
+    print(f"  Tira {ancho_tira:.0f}px sobre un cuello de {ancho_cuello_h:.0f}px | sigue a la cabeza: {salto_tira:.1f}px de 20px")
+    print("  [OK] Prueba 29 superada: la tira sigue al cuello y el torso se mantiene en su lugar.")
+
     print("\n" + "=" * 65)
-    print("   [OK] TODAS LAS 28 PRUEBAS DEL SISTEMA FUERON SUPERADAS CON EXITO")
+    print("   [OK] TODAS LAS 29 PRUEBAS DEL SISTEMA FUERON SUPERADAS CON EXITO")
     print("=" * 65)
 
 if __name__ == "__main__":

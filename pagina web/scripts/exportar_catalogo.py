@@ -12,14 +12,14 @@
 # 3. Escribe pagina web/public/datos/catalogo.json con los datos de cada prenda y
 #    los puntos de su malla (el probador web los usa para deformarla sobre el cuerpo).
 # 4. Copia tienda.py en pagina web/api/_lib/ para que la API use las mismas reglas
-#    de compra, puntos, niveles y cupones que el programa de escritorio.
+#    de compra, puntos, niveles y cupones que el programa de escritorio (con la
+#    conexión a Supabase / PostgreSQL de conexion_db.py en lugar de la de MySQL).
 #
 # Volver a correrlo cada vez que se agreguen prendas o se cambien colores.
 
 import json
 import os
 import re
-import shutil
 import sys
 import unicodedata
 
@@ -99,7 +99,13 @@ def main():
     with open(ARCHIVO_JSON, "w", encoding="utf-8") as archivo:
         json.dump({"prendas": prendas}, archivo, ensure_ascii=False, indent=1)
 
-    shutil.copy(os.path.join(RAIZ_PROYECTO, "tienda.py"), os.path.join(RAIZ_WEB, "api", "_lib", "tienda.py"))
+    with open(os.path.join(RAIZ_PROYECTO, "tienda.py"), encoding="utf-8") as archivo:
+        tienda = archivo.read()
+    original = "from conexion_mysql import conectar, clave_variante"
+    if original not in tienda:
+        sys.exit("[ERROR] tienda.py cambió la línea de conexión: revisar la copia para la web.")
+    with open(os.path.join(RAIZ_WEB, "api", "_lib", "tienda.py"), "w", encoding="utf-8", newline="") as archivo:
+        archivo.write(tienda.replace(original, "from conexion_db import conectar, clave_variante"))
     print(f"\n{len(prendas)} prendas exportadas a {ARCHIVO_JSON}")
     print("tienda.py copiado a pagina web/api/_lib/")
 

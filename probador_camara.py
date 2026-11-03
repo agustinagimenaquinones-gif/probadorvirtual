@@ -12,7 +12,7 @@ import numpy as np
 from tkinter import messagebox
 
 from pose_tracker import PoseTracker
-from clothing_geometry import detectar_puntos_clave_prenda
+from clothing_geometry import detectar_puntos_clave_prenda, es_cuello_halter
 from clothing_warper import deformar_malla_prenda
 from body_layering import componer_prenda_con_capas
 from catalogo import holgura_de_talle, talle_inicial, obtener_medidas_talle
@@ -539,7 +539,9 @@ def ejecutar_probador_camara(prenda_inicial, catalogo, talle_elegido="M", color_
                     frame = componer_prenda_con_capas(
                         frame, parche, xmin, ymin, xmax, ymax, info_anatomica,
                         talle=talle, recortar_silueta=recorte_silueta, sombras=True,
-                        cuello_por_delante=tiene_mangas and not de_espaldas
+                        cuello_por_delante=tiene_mangas and not de_espaldas,
+                        tira_al_cuello=es_cuello_halter(puntos_prenda) and not de_espaldas,
+                        sin_mangas=not tiene_mangas
                     )
                 # Vista de costado: aparece a medida que se va la de frente. La tela sale
                 # de la espalda de la prenda (de costado no se ven logos ni botones).

@@ -19,14 +19,14 @@ from pydantic import BaseModel, Field
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "_lib"))
 
-import conexion_mysql  # noqa: E402
+import conexion_db  # noqa: E402
 import tienda  # noqa: E402
 
 app = FastAPI(title="Probador Virtual Inteligente - API", docs_url="/api/docs", openapi_url="/api/openapi.json")
 
 
 def a_json(valor):
-    """Convierte lo que devuelve MySQL / tienda.py (Decimal, fechas, sets) a JSON."""
+    """Convierte lo que devuelve la base / tienda.py (Decimal, fechas, sets) a JSON."""
     if isinstance(valor, dict):
         return {str(k): a_json(v) for k, v in valor.items()
                 if k not in ("todos_los_cupones",)}  # los cupones usados no salen de la base
@@ -45,7 +45,7 @@ def sin_base():
 
 def con_la_base(funcion, *args, **kwargs):
     """Corre una función de tienda.py y traduce sus errores a respuestas HTTP."""
-    if not conexion_mysql.hay_base_configurada():
+    if not conexion_db.hay_base_configurada():
         sin_base()
     try:
         return funcion(*args, **kwargs)
@@ -109,10 +109,10 @@ class Prueba(BaseModel):
 @app.get("/api/salud")
 def salud():
     """Para saber si la API anda y si tiene base de datos."""
-    if not conexion_mysql.hay_base_configurada():
+    if not conexion_db.hay_base_configurada():
         return {"api": True, "base": False}
     try:
-        conexion = conexion_mysql.conectar()
+        conexion = conexion_db.conectar()
         conexion.close()
         return {"api": True, "base": True}
     except Exception as error:
@@ -123,7 +123,7 @@ def salud():
 @app.get("/api/prendas")
 def prendas():
     """Precio y stock en vivo de cada prenda (las fotos y la malla están en datos/catalogo.json)."""
-    return JSONResponse({"prendas": con_la_base(conexion_mysql.leer_prendas)},
+    return JSONResponse({"prendas": con_la_base(conexion_db.leer_prendas)},
                         headers={"Cache-Control": "no-store"})
 
 
@@ -143,7 +143,7 @@ def ingresar(datos: Ingreso):
 @app.get("/api/clientes/{id_cliente}")
 def cliente(id_cliente: int):
     def leer():
-        conexion = conexion_mysql.conectar()
+        conexion = conexion_db.conectar()
         try:
             return tienda._leer_cliente(conexion.cursor(dictionary=True), id_cliente)
         finally:
@@ -169,7 +169,7 @@ def favorito(datos: Favorito):
 def cotizar(pedido: Pedido):
     """Total con descuentos, sin comprar (para mostrarlo antes de confirmar)."""
     def calcular():
-        conexion = conexion_mysql.conectar()
+        conexion = conexion_db.conectar()
         try:
             cursor = conexion.cursor(dictionary=True)
             subtotal = Decimal(0)

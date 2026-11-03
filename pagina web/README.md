@@ -1,26 +1,66 @@
 # Vestidor Virtual — página web
 
-Versión web del **Probador Virtual Inteligente**, lista para publicar en **Vercel**, con el frontend y el backend en la misma carpeta.
+Versión web del **Probador Virtual Inteligente**, lista para publicar en **Vercel**, con el frontend y el backend en la misma carpeta. La base de datos está en **Supabase** (PostgreSQL).
 
 | Parte | Qué es | Dónde está |
 |---|---|---|
 | Frontend | Tienda (catálogo, cuenta, compra) y probador con cámara. Es HTML, CSS y JavaScript, sin compilar nada. | `public/` |
 | Backend | API en Python (FastAPI) que corre como función de Vercel. Usa el mismo `tienda.py` del programa de escritorio. | `api/index.py`, `api/_lib/` |
-| Base de datos | MySQL en la nube (Vercel no guarda bases de datos). | Variables de entorno |
+| Base de datos | Supabase (PostgreSQL), con las mismas 5 tablas que el MySQL del proyecto. | `supabase/` y la variable `DATABASE_URL` |
+
+El programa de escritorio sigue usando el MySQL de la compu. La página web usa Supabase. El catálogo se pasa de uno a otro con un script (paso 3).
 
 ### Por qué el probador corre en el navegador
 
 En el programa de escritorio, la cámara la procesan Python, OpenCV y MediaPipe en la compu. En la web eso no puede correr en el servidor: Vercel no tiene cámara, y mandar el video de cada cuadro a un servidor sería lento y poco privado.
 
-Por eso el probador web usa **MediaPipe en su versión para navegador** y la **misma malla de 23 puntos** de cada prenda. El script de exportación calcula esa malla con el código de Python del proyecto. La imagen de la cámara **nunca sale de la compu del cliente**: a la base sólo llega qué prenda se probó, en qué color y talle, y cuánto tiempo.
+Por eso el probador web usa **MediaPipe en su versión para navegador** y la **misma malla de 31 puntos** de cada prenda. El script de exportación calcula esa malla con el código de Python del proyecto. La imagen de la cámara **nunca sale de la compu del cliente**: a la base sólo llega qué prenda se probó, en qué color y talle, y cuánto tiempo.
 
 **Diferencias con el probador de escritorio:**
-- La versión web se recorta a la silueta, protege la cara, quita el temblor con el filtro One Euro y respeta el talle y el calce.
-- Todavía no tiene el escáner de silueta fila por fila, la inercia de la tela, la luz de la escena, el pelo por delante ni los logos rígidos.
+- La versión web mide la silueta a varias alturas (sin contar los brazos), se recorta a ella, deja los brazos por delante, ancla el cuello de los tops halter, protege la cara, quita el temblor con el filtro One Euro y respeta el talle y el calce.
+- Todavía no tiene el escáner de silueta fila por fila, la tela que envuelve el torso, la inercia de la tela, la luz de la escena, el pelo por delante ni los logos rígidos. Con los brazos cruzados, la tela queda por delante.
 
 ---
 
-## 1. Probarla en la compu
+## 1. Crear las tablas en Supabase
+
+En el panel de Supabase, entrá al proyecto y abrí **SQL Editor**. Ejecutá estos dos archivos, en este orden:
+
+1. `supabase/esquema.sql`: crea las 5 tablas. Les activa RLS sin políticas, así nadie las puede tocar con las claves públicas de Supabase.
+2. `supabase/catalogo.sql`: carga las 14 prendas con su stock.
+
+Los dos se pueden ejecutar más de una vez sin duplicar nada.
+
+Con el servidor MCP de Supabase conectado (`.mcp.json` en la carpeta del proyecto), también se le puede pedir a Claude que los ejecute.
+
+## 2. Publicar en Vercel
+
+1. En <https://vercel.com>, entrá a **Add New → Project** e importá el repositorio `probadorvirtual` de GitHub.
+2. En **Root Directory** elegí `pagina web`. El *Framework Preset* queda en **Other**.
+3. En **Environment Variables** agregá `DATABASE_URL`. Para obtenerla:
+   - En Supabase, tocá **Connect → Transaction pooler** (puerto 6543).
+   - Copiá la cadena y reemplazá `[YOUR-PASSWORD]` por la contraseña de la base.
+   - Es la cadena de `.env.example`.
+4. Tocá **Deploy**. Cada vez que subas cambios a GitHub (`git push`), Vercel publica la versión nueva.
+
+La contraseña de la base va sólo en Vercel: nunca en el código ni en GitHub. **Si no cargás `DATABASE_URL`**, la página igual se publica en **modo vidriera**: muestra el catálogo y el probador funciona, pero no se puede comprar.
+
+## 3. Actualizar el catálogo
+
+Hay que hacerlo cada vez que cambian las prendas, los colores o las fotos. Los comandos se corren desde la carpeta del proyecto principal:
+
+```bash
+.venv\Scripts\python.exe "pagina web\scripts\exportar_catalogo.py"
+```
+
+```bash
+.venv\Scripts\python.exe "pagina web\scripts\exportar_a_supabase.py"
+```
+
+- **El primer comando** genera las imágenes (`public/prendas/*.webp`) y los puntos de la malla (`public/datos/catalogo.json`). Además copia `tienda.py` a `api/_lib/`, con la conexión a Supabase.
+- **El segundo comando** genera `supabase/catalogo.sql` desde tu MySQL. Ejecutalo en Supabase: actualiza los datos de las prendas pero no pisa el stock que se vendió por la web.
+
+## 4. Probarla en la compu
 
 Desde la carpeta `pagina web`:
 
@@ -32,80 +72,41 @@ python -m venv .venv
 .venv\Scripts\python.exe -m pip install -r requirements.txt uvicorn
 ```
 
+Para que compre de verdad, antes cargá `$env:DATABASE_URL="..."` en esa terminal. Sin esa variable, la página anda en modo vidriera.
+
 ```bash
 .venv\Scripts\python.exe servidor_local.py
 ```
 
 Después abrí <http://localhost:8000>.
 
-- **Base de datos:** el servidor local usa la base MySQL de la compu, con los datos de `../base_datos/mysql.ini`.
 - **Documentación de la API:** está en <http://localhost:8000/api/docs>.
 - **Modo foto, sin cámara:** abrí `probador.html?foto=mi_foto.jpg`, con la foto dentro de `public/`. Sirve para presentaciones.
-
-## 2. Actualizar el catálogo de la página
-
-Hay que correrlo cada vez que cambian las prendas, los colores o las fotos. Se corre desde la carpeta del proyecto principal, con su entorno de Python:
-
-```bash
-.venv\Scripts\python.exe "pagina web\scripts\exportar_catalogo.py"
-```
-
-El script genera:
-- `public/prendas/*.webp`: una imagen por prenda y por color.
-- `public/datos/catalogo.json`: los datos de cada prenda y los puntos de su malla.
-
-Además copia `tienda.py` a `api/_lib/`, para que la web use las mismas reglas de stock, niveles, puntos y cupones.
-
-## 3. Crear la base MySQL en la nube
-
-Vercel no puede usar el MySQL de tu compu. Creá una base MySQL gratuita en un servicio en la nube, por ejemplo **Aiven for MySQL** (plan gratis) o **TiDB Cloud Serverless**. El servicio te va a dar el host, el puerto, el usuario y la contraseña.
-
-Para crear las tablas y cargar el catálogo, usá el mismo programa que ya tenés. En una terminal, en la carpeta del proyecto principal, cargá los datos de la base de la nube y corré el cargador:
-
-```powershell
-$env:PROBADOR_MYSQL_HOST="tu-host.aivencloud.com"; $env:PROBADOR_MYSQL_PORT="12345"; $env:PROBADOR_MYSQL_USER="avnadmin"; $env:PROBADOR_MYSQL_PASSWORD="(tu contraseña)"; $env:PROBADOR_MYSQL_DATABASE="probador_virtual"
-```
-
-```bash
-.venv\Scripts\python.exe cargar_prendas_mysql.py --crear-tablas
-```
-
-Esas variables duran sólo mientras esté abierta esa terminal: tu `mysql.ini` local no se toca. La contraseña nunca se escribe en el código ni se sube a GitHub.
-
-## 4. Publicar en Vercel
-
-**Opción A, con GitHub (recomendada):**
-1. Subí el proyecto a un repositorio de GitHub.
-2. En <https://vercel.com>, entrá a **Add New → Project** e importá el repositorio.
-3. En **Root Directory** elegí `pagina web`. El *Framework Preset* queda en **Other**.
-4. En **Environment Variables** cargá las variables de `.env.example`, con los datos de la base de la nube y `PROBADOR_MYSQL_SSL=1`.
-5. Tocá **Deploy**. Cada vez que subas cambios a GitHub, Vercel publica la versión nueva.
-
-**Opción B, desde la terminal:** dentro de `pagina web`, corré `npx vercel`. Después cargá las variables en el panel del proyecto y publicá con `npx vercel --prod`.
-
-**Si no configurás la base**, la página igual se publica en **modo vidriera**: muestra el catálogo y el probador funciona, pero no se puede comprar.
 
 ## Cómo está organizada
 
 ```
 pagina web/
 ├── vercel.json          rutas (/api/* → api/index.py) y la carpeta pública
-├── requirements.txt     paquetes de Python del backend
-├── .env.example         variables que hay que cargar en Vercel
+├── requirements.txt     paquetes de Python del backend (FastAPI y psycopg)
+├── .env.example         la variable que hay que cargar en Vercel
 ├── servidor_local.py    servidor para probar en la compu
 ├── api/
 │   ├── index.py         API: prendas, clientes, favoritos, cotizar, pruebas, compras
-│   └── _lib/            conexion_mysql.py (para la nube) y tienda.py (copiado del proyecto)
+│   └── _lib/            conexion_db.py (Supabase) y tienda.py (copiado del proyecto)
+├── supabase/
+│   ├── esquema.sql      las 5 tablas en PostgreSQL
+│   └── catalogo.sql     las prendas exportadas del MySQL
 ├── public/
 │   ├── index.html       tienda
 │   ├── probador.html    probador con cámara
-│   ├── css/estilos.css
-│   ├── js/              comun.js, tienda.js, malla.js (geometría), probador.js
+│   ├── css/, js/        estilos; comun.js, tienda.js, malla.js (geometría), probador.js
 │   ├── modelos/         modelo de pose de MediaPipe
 │   ├── prendas/         imágenes exportadas
 │   └── datos/           catalogo.json exportado
 └── scripts/
-    └── exportar_catalogo.py
+    ├── exportar_catalogo.py
+    └── exportar_a_supabase.py
 ```
 
 ## Rutas de la API

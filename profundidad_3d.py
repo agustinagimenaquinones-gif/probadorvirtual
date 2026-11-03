@@ -26,7 +26,10 @@ import cv2
 from ajuste_silueta import _bordes_desde_centro, _suavizar
 
 # Medio arco del cuerpo que cubre el frente de la prenda (grados)
-ARCO_FRENTE = 62.0
+ARCO_FRENTE = 72.0
+# El ruedo y el escote se ven curvos, como un aro alrededor del cuerpo visto desde arriba:
+# cuánto suben los costados (fracción del ancho de hombros)
+CURVA_DEL_ARO = 0.035
 # Giro del torso: el valor 'giro' de pose_tracker (-0.7 a 0.7) pasado a grados
 GRADOS_POR_GIRO = 50.0
 # Cuánto se oscurecen los costados por la curva del cuerpo (0 = nada)
@@ -102,7 +105,9 @@ def envolver_en_torso(parche_rgba, xmin, ymin, info, arco=ARCO_FRENTE, intensida
     w = (peso * ok)[:, None]
     dentro = (xs >= l) & (xs <= r)
     map_x = np.where(dentro, xs + w * (origen - xs), xs).astype(np.float32)
-    map_y = np.repeat(filas.astype(np.float32)[:, None], c1 - c0, axis=1)
+    # Los costados muestran tela de más abajo: así el ruedo sube hacia los lados
+    curva = float(info["dist_sh"]) * CURVA_DEL_ARO * (1.0 - np.cos(phi)) / max(1e-3, 1.0 - math.cos(a))
+    map_y = (filas.astype(np.float32)[:, None] + w * curva).astype(np.float32)
     resultado = parche_rgba.copy()
     zona = cv2.remap(parche_rgba, map_x, map_y, interpolation=cv2.INTER_LINEAR,
                      borderMode=cv2.BORDER_CONSTANT, borderValue=(0, 0, 0, 0))
