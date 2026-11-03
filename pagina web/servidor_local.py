@@ -6,24 +6,15 @@
 #     .venv\Scripts\python.exe servidor_local.py
 # y abrir http://localhost:8000 en el navegador.
 #
-# Sirve la misma API que Vercel (api/index.py) y los archivos de public/. Usa la base
-# MySQL de la compu: toma los datos de ../base_datos/mysql.ini (el del probador de
-# escritorio) salvo que ya estén las variables PROBADOR_MYSQL_*.
+# Sirve la misma API que Vercel (api/index.py) y los archivos de public/. La base es
+# la de la variable DATABASE_URL (la de Supabase, o un PostgreSQL de prueba). Sin esa
+# variable la página funciona en modo vidriera (sin compras).
+#     $env:DATABASE_URL="postgresql://..."; .venv\Scripts\python.exe servidor_local.py
 
-import configparser
 import os
 import sys
 
 AQUI = os.path.dirname(os.path.abspath(__file__))
-INI = os.path.join(os.path.dirname(AQUI), "base_datos", "mysql.ini")
-
-if "PROBADOR_MYSQL_HOST" not in os.environ and os.path.exists(INI):
-    parser = configparser.ConfigParser()
-    parser.read(INI, encoding="utf-8")
-    if parser.has_section("mysql"):
-        for clave, valor in parser.items("mysql"):
-            os.environ.setdefault(f"PROBADOR_MYSQL_{clave.upper()}", valor)
-        os.environ.setdefault("PROBADOR_MYSQL_HOST", "localhost")
 
 sys.path.insert(0, AQUI)
 

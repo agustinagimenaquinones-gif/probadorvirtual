@@ -46,6 +46,11 @@ def recuperar_partes_borradas(img_rgba):
     # El fondo tiene que ser parejo: si no, no se puede distinguir de la tela
     if float(np.percentile(np.abs(muestra - fondo).max(axis=1), 90)) > 6:
         return img_rgba
+    # Debajo de lo transparente está el color de la misma tela (ver extender_color_de_la_tela):
+    # esa foto ya se limpió y no hay fondo con el que comparar. Si se "recuperara" algo, se
+    # taparía el hueco entre la manga y el torso.
+    if float(np.abs(fondo - np.median(bgr[alfa > 200][::7], axis=0)).max()) <= UMBRAL_DIFERENCIA_FONDO:
+        return img_rgba
 
     distinto = (np.abs(bgr - fondo).max(axis=2) > UMBRAL_DIFERENCIA_FONDO) & transparente
     nucleo = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
@@ -106,3 +111,62 @@ def extender_color_de_la_tela(img_rgba, alfa_solido=250):
     resultado = img_rgba.copy()
     resultado[:, :, :3] = np.clip(color, 0, 255).astype(np.uint8)
     return resultado
+
+
+def enderezar_prenda(img_rgba, ventana_ancho=0.08, ventana_centro=0.30):
+    """
+    Foto tomada sobre una modelo torcida o de costado: la prenda sale con el eje inclinado,
+    un lado más ancho que el otro y el cuello corrido. Fila por fila, lleva la tela a un eje
+    vertical y a un ancho parejo a los dos lados. Un cuello alto queda como un tubo recto
+    (las puntas que asoman arriba se recortan). Sirve para prendas lisas: un estampado se
+    movería junto con la tela.
+    """
+    alfa = img_rgba[:, :, 3] > 128
+    filas = np.where(alfa.any(axis=1))[0]
+    if len(filas) < 20:
+        return img_rgba
+    y0, y1 = int(filas[0]), int(filas[-1]) + 1
+    alto = y1 - y0
+    izq = np.array([np.argmax(alfa[y]) for y in range(y0, y1)], dtype=np.float32)
+    der = np.array([alfa.shape[1] - 1 - np.argmax(alfa[y, ::-1]) for y in range(y0, y1)], dtype=np.float32)
+
+    # Cuello: las filas de arriba tan angostas como el tubo. Se mide debajo de las puntas
+    a, b = int(alto * 0.05), int(alto * 0.10)
+    medio_cuello = float(np.median((der - izq)[a:b])) * 0.5
+    centro_cuello = float(np.median((der + izq)[a:b])) * 0.5
+    fin_cuello = b
+    while fin_cuello < alto // 2 and (der[fin_cuello] - izq[fin_cuello]) * 0.5 < medio_cuello * 1.12:
+        fin_cuello += 1
+    izq[:fin_cuello] = centro_cuello - medio_cuello
+    der[:fin_cuello] = centro_cuello + medio_cuello
+
+    # El borde de arriba suele ser curvo (se ve la piel del cuello en el medio, con puntas
+    # a los lados): el cuello empieza donde ya hay tela de lado a lado, y queda parejo
+    c0, c1 = int(centro_cuello - medio_cuello * 0.8), int(centro_cuello + medio_cuello * 0.8)
+    corte = 0
+    while corte < fin_cuello - 1 and alfa[y0 + corte, c0:c1].mean() < 0.98:
+        corte += 1
+    y0, alto = y0 + corte, alto - corte
+    izq, der = izq[corte:], der[corte:]
+    fin_cuello -= corte
+
+    def suave(v, ventana):
+        k = max(3, int(alto * ventana) | 1)
+        return cv2.GaussianBlur(v[:, None], (1, k), 0, borderType=cv2.BORDER_REPLICATE)[:, 0]
+
+    medio = suave((der - izq) * 0.5, ventana_ancho)
+    medio[:fin_cuello] = medio_cuello
+    # Del cuello al pecho, sin escalón
+    rampa = min(alto - fin_cuello, max(3, int(alto * 0.03)))
+    t = np.linspace(0.0, 1.0, rampa, dtype=np.float32)
+    medio[fin_cuello:fin_cuello + rampa] = medio_cuello + (medio[fin_cuello:fin_cuello + rampa] - medio_cuello) * t
+
+    ancho = int(np.ceil(medio.max())) * 2 + 6
+    eje = ancho * 0.5
+    xs = np.arange(ancho, dtype=np.float32)[None, :]
+    relativo = (xs - eje) / np.maximum(1.0, medio[:, None])     # -1 y 1 son los bordes de la tela
+    map_x = (izq[:, None] + (relativo + 1.0) * 0.5 * (der - izq)[:, None]).astype(np.float32)
+    map_x[np.abs(relativo) > 1.0] = -1.0
+    map_y = np.repeat(np.arange(y0, y1, dtype=np.float32)[:, None], ancho, axis=1)
+    return cv2.remap(img_rgba, map_x, map_y, interpolation=cv2.INTER_LINEAR,
+                     borderMode=cv2.BORDER_CONSTANT, borderValue=(0, 0, 0, 0))

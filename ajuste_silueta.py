@@ -27,20 +27,15 @@ def _es_piel(bgr):
 def _mascara_torso_sin_brazos(mascara_roi, info, xmin, ymin, alto, ancho, frame_roi=None):
     """
     Silueta de la persona en la zona de la prenda, quitando los brazos.
-    Si se pasa la imagen (frame_roi), dentro de la zona del brazo sólo se quita lo que
-    tiene color de piel: así, si el brazo cuelga pegado al cuerpo, la ropa de al lado
-    sigue contando como torso. El centro del brazo se quita siempre.
+    El brazo se quita entero, tenga el color que tenga: con mangas (un buzo, una campera)
+    no hay piel que lo delate y, si cuelga pegado al cuerpo, la silueta une brazo y torso.
+    El torso termina donde empieza el brazo.
     """
     cuerpo = (mascara_roi > 0.5).astype(np.uint8)
     d_sh = float(info["dist_sh"])
     medidas = info.get("medidas") or {}
-    # un poco más angosto que el brazo medido: si el brazo cuelga pegado al cuerpo,
-    # así no se "come" el costado del torso
-    grosor_medido = (medidas.get("brazo") or d_sh * 0.22)
-    grosor = int(max(6, grosor_medido * (1.0 if frame_roi is not None else 0.80)))
-    grosor_centro = int(max(4, grosor_medido * 0.45))
+    grosor = int(max(6, medidas.get("brazo") or d_sh * 0.22))
     brazos = np.zeros((alto, ancho), dtype=np.uint8)
-    centro_brazos = np.zeros((alto, ancho), dtype=np.uint8)
     offset = np.array([xmin, ymin], dtype=np.float32)
     for hombro, codo, muneca in (("p_sh_l", "p_elb_l", "p_wri_l"), ("p_sh_r", "p_elb_r", "p_wri_r")):
         p_sh, p_elb, p_wri = (np.asarray(info[k], dtype=np.float32) - offset for k in (hombro, codo, muneca))
@@ -52,12 +47,7 @@ def _mascara_torso_sin_brazos(mascara_roi, info, xmin, ymin, alto, ancho, frame_
         inicio = p_sh + eje / largo * min(largo, d_sh * 0.30)
         for a, b in ((inicio, p_elb), (p_elb, p_wri)):
             cv2.line(brazos, tuple(np.int32(a)), tuple(np.int32(b)), 1, grosor)
-            cv2.line(centro_brazos, tuple(np.int32(a)), tuple(np.int32(b)), 1, grosor_centro)
-    if frame_roi is not None and frame_roi.shape[:2] == (alto, ancho):
-        quitar = (centro_brazos > 0) | ((brazos > 0) & _es_piel(frame_roi))
-    else:
-        quitar = brazos > 0
-    return (cuerpo > 0) & ~quitar
+    return (cuerpo > 0) & ~(brazos > 0)
 
 
 def _bordes_desde_centro(filas_bool, centros):
@@ -190,13 +180,20 @@ def ajustar_prenda_a_silueta(parche_rgba, xmin, ymin, mascara, info, holgura=1.0
     # Si alguna fila todavía incluye mangas pegadas al torso, no se ajusta
     ancho_objetivo = objetivo_der - objetivo_izq
     con_mangas = (filas < fin_mangas) & (ancho_tela > ancho_objetivo * 1.30)
+    # Las filas con manga son un solo tramo, y el ajuste entra de a poco recién debajo:
+    # si se alternaran filas ajustadas y sin ajustar, el costado quedaría en serrucho
+    y_rampa_inicio = y_inicio
+    if con_mangas.any():
+        ultima_manga = int(filas[con_mangas].max())
+        con_mangas = filas <= ultima_manga
+        y_rampa_inicio = max(y_inicio, ultima_manga)
 
     # Construir el mapa de píxeles: en cada fila, los bordes de la tela van a los bordes del cuerpo
     map_x = np.tile(np.arange(ancho, dtype=np.float32), (alto, 1))
     map_y = np.repeat(np.arange(alto, dtype=np.float32)[:, None], ancho, axis=1)
     xs = np.arange(ancho, dtype=np.float32)[None, :]
     # Todas las filas a la vez: cada columna de 'xs' es un píxel, cada fila una fila de la prenda
-    peso = np.clip((filas - y_inicio) / max(1, y_rampa), 0.0, 1.0)
+    peso = np.clip((filas - y_rampa_inicio) / max(1, y_rampa), 0.0, 1.0)
     gl, gr = tela_izq, tela_der
     tl = gl + (objetivo_izq - gl) * peso
     tr = gr + (objetivo_der - gr) * peso
@@ -376,6 +373,42 @@ def ajustar_mangas(parche_rgba, xmin, ymin, mascara, info, holgura=1.05):
                      borderMode=cv2.BORDER_CONSTANT, borderValue=(0, 0, 0, 0))
 
 
+def suavizar_contorno(parche_rgba, info, ventana=0.10):
+    """
+    Prenda sin mangas: redondea el contorno de arriba abajo. La malla y el ajuste por filas
+    dejan esquinas (en la axila, en la cintura, donde el cuello se une al hombro) y un
+    cuerpo real no las tiene. Lo que cae más abajo del ruedo (un pañuelo) no se toca.
+    """
+    if parche_rgba is None or info is None:
+        return parche_rgba
+    alto, ancho = parche_rgba.shape[:2]
+    tela = parche_rgba[:, :, 3] > 100
+    hay = tela.any(axis=1)
+    if hay.sum() < 20:
+        return parche_rgba
+    izq = np.argmax(tela, axis=1).astype(np.float32)
+    der = (ancho - 1 - np.argmax(tela[:, ::-1], axis=1)).astype(np.float32)
+    anchos = np.where(hay, der - izq, 0.0)
+    filas = np.where(hay)[0]
+    y0 = int(filas[0])
+    y1 = int(np.where(anchos >= anchos.max() * 0.5)[0][-1]) + 1
+    if y1 - y0 < 20:
+        return parche_rgba
+    k = max(5, int(float(info["dist_torso"]) * ventana) | 1)
+    nuevo_izq = cv2.GaussianBlur(izq[y0:y1, None], (1, k), 0, borderType=cv2.BORDER_REPLICATE)[:, 0]
+    nuevo_der = cv2.GaussianBlur(der[y0:y1, None], (1, k), 0, borderType=cv2.BORDER_REPLICATE)[:, 0]
+    map_x = np.tile(np.arange(ancho, dtype=np.float32), (alto, 1))
+    map_y = np.repeat(np.arange(alto, dtype=np.float32)[:, None], ancho, axis=1)
+    xs = np.arange(ancho, dtype=np.float32)[None, :]
+    gl, gr = izq[y0:y1, None], der[y0:y1, None]
+    tl, tr = nuevo_izq[:, None], nuevo_der[:, None]
+    estirada = gl + (xs - tl) * (gr - gl) / np.maximum(1.0, tr - tl)
+    # Fuera del contorno nuevo no queda nada (ni los restos casi transparentes del borde)
+    map_x[y0:y1] = np.where((xs >= tl) & (xs <= tr), estirada, -1.0)
+    return cv2.remap(parche_rgba, map_x, map_y, interpolation=cv2.INTER_LINEAR,
+                     borderMode=cv2.BORDER_CONSTANT, borderValue=(0, 0, 0, 0))
+
+
 def ajustar_prenda_completa(parche_rgba, xmin, ymin, mascara, info, holgura=1.05, calce="regular", memoria=None,
                             frame_bgr=None, tiene_mangas=True):
     """
@@ -387,5 +420,6 @@ def ajustar_prenda_completa(parche_rgba, xmin, ymin, mascara, info, holgura=1.05
     if tiene_mangas:
         p = ajustar_hombros(p, xmin, ymin, mascara, info, holgura)
         p = ajustar_mangas(p, xmin, ymin, mascara, info, holgura)
-    return ajustar_prenda_a_silueta(p, xmin, ymin, mascara, info, holgura=holgura, calce=calce, memoria=memoria,
-                                    frame_bgr=frame_bgr)
+    p = ajustar_prenda_a_silueta(p, xmin, ymin, mascara, info, holgura=holgura, calce=calce, memoria=memoria,
+                                 frame_bgr=frame_bgr)
+    return p if tiene_mangas else suavizar_contorno(p, info)

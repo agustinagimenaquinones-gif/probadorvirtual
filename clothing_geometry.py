@@ -71,10 +71,56 @@ def obtener_triangulos_prenda(tiene_mangas=True):
     return TRIANGULOS_TORSO
 
 
+def _puntos_sin_mangas_desde_contorno(alpha, pts, xmin, xmax, ymin, ymax):
+    """
+    Prenda sin mangas: apoya los puntos en el contorno REAL de la foto (no en porcentajes
+    fijos), así la tira del cuello queda medida. Si hay algo que cae más abajo del ruedo
+    (un pañuelo), agrega 'ruedo_cuerpo': dónde termina de verdad el cuerpo de la prenda.
+    """
+    gw = float(max(1, xmax - xmin))
+    margen = gw * 0.015
+
+    anchos = (alpha > 25).sum(axis=1)
+    filas_cuerpo = np.where(anchos >= anchos.max() * 0.5)[0]
+    y_cuerpo = int(filas_cuerpo[-1]) if len(filas_cuerpo) else ymax
+    gh = float(max(1, y_cuerpo - ymin))
+
+    def borde(y):
+        y = int(np.clip(y, ymin, ymax))
+        xs = np.where(alpha[y, :] > 25)[0]
+        return (float(xs[0]) - margen, float(xs[-1]) + margen) if len(xs) else (float(xmin), float(xmax))
+
+    izq, der = borde(ymin + gh * 0.02)
+    pts["collar_top_l"], pts["collar_top_r"] = (izq, float(ymin)), (der, float(ymin))
+    pts["collar_top_mid"] = ((izq + der) * 0.5, float(ymin))
+    for clave, fraccion in (("shoulder", 0.20), ("armpit", 0.38), ("underbust", 0.50), ("waist", 0.65),
+                            ("high_hip", 0.82)):
+        izq, der = borde(ymin + gh * fraccion)
+        pts[f"{clave}_l"], pts[f"{clave}_r"] = (izq, ymin + gh * fraccion), (der, ymin + gh * fraccion)
+    izq, der = borde(y_cuerpo - gh * 0.01)
+    pts["hem_l"], pts["hem_r"] = (izq, float(ymax)), (der, float(ymax))
+    cx = (pts["armpit_l"][0] + pts["armpit_r"][0]) * 0.5
+    pts["chest_mid"] = (cx, ymin + gh * 0.38)
+    pts["torso_mid"] = (cx, ymin + gh * 0.65)
+    pts["hem_mid"] = (cx, float(ymax))
+    if ymax - y_cuerpo > gh * 0.05:
+        pts["ruedo_cuerpo"] = (cx, float(y_cuerpo))
+    return pts
+
+
+def es_cuello_halter(puntos):
+    """Top halter: arriba, la tela es mucho más angosta que el pecho (una tira que rodea el cuello)."""
+    if not all(k in puntos for k in ("collar_top_l", "collar_top_r", "armpit_l", "armpit_r")):
+        return False
+    ancho_pecho = abs(float(puntos["armpit_r"][0]) - float(puntos["armpit_l"][0]))
+    ancho_cuello = abs(float(puntos["collar_top_r"][0]) - float(puntos["collar_top_l"][0]))
+    return ancho_pecho > 1.0 and ancho_cuello / ancho_pecho < 0.60
+
+
 def detectar_puntos_clave_prenda(img_rgba):
     """
     Analiza de forma automática cualquier prenda PNG con canal alfa y extrae
-    sus 23 puntos anatómicos clave:
+    sus 31 puntos anatómicos clave:
     - Cuello: borde superior, base de cuello, puntas de cuello/escote.
     - Hombros: costura exterior.
     - Mangas: curvatura superior, puños exteriores e interiores.
@@ -200,6 +246,8 @@ def detectar_puntos_clave_prenda(img_rgba):
 
     if tiene_mangas:
         pts = _ajustar_puntos_al_contorno(alpha > 25, pts, xmin, xmax, ymin, ymax)
+    else:
+        pts = _puntos_sin_mangas_desde_contorno(alpha, pts, xmin, xmax, ymin, ymax)
 
     return pts, tiene_mangas
 
@@ -237,7 +285,8 @@ def _puntos_lado_izquierdo(mask, xmin, xmax, ymin, ymax):
     axila = None
     for y in range(int(ymin + gh * 0.10), int(ymin + gh * 0.65)):
         tramos = _tramos(np.where(mitad[y])[0])
-        if len(tramos) >= 2 and tramos[-1][0] - tramos[-2][1] >= 2:
+        # (el torso es el tramo ancho: un pedacito suelto al lado del cuello no es la axila)
+        if len(tramos) >= 2 and tramos[-1][0] - tramos[-2][1] >= 2 and tramos[-1][1] - tramos[-1][0] >= gw * 0.15:
             axila = (float(tramos[-1][0]), float(y))
             break
     if axila is None:
@@ -285,7 +334,7 @@ def _puntos_lado_izquierdo(mask, xmin, xmax, ymin, ymax):
     if x_underbust is None and x_cintura is not None:
         x_underbust = (axila[0] + x_cintura) * 0.5
 
-    y_ruedo = ymax - 2
+    y_ruedo = ymax - max(2.0, gh * 0.03)   # un poco más arriba: las puntas del ruedo pueden ser redondeadas
     x_ruedo = borde_torso(y_ruedo)
 
     y_high_hip = ymin + gh * 0.82

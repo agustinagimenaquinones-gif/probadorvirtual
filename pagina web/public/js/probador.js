@@ -205,6 +205,93 @@ function actualizarSilueta(mascara) {
   ctxSilueta.filter = `blur(${Math.max(2, Math.round(capaSilueta.width / 320))}px)`;
   ctxSilueta.drawImage(siluetaChica, 0, 0, capaSilueta.width, capaSilueta.height);
   ctxSilueta.restore();
+  // Copia para medir el cuerpo: MediaPipe libera la original al terminar el cuadro
+  if (!estado.mascara || estado.mascara.valores.length !== valores.length) estado.mascara = { valores: new Float32Array(valores.length), ancho, alto };
+  estado.mascara.valores.set(valores);
+}
+
+// Medidas de la silueta, suavizadas entre cuadros para que el borde de la tela no tiemble
+function actualizarMedidas(g) {
+  if (!estado.mascara) return null;
+  const nuevas = Malla.medirSilueta(g, estado.mascara, lienzo.width, lienzo.height);
+  const previas = estado.medidas || {};
+  for (const [nombre, par] of Object.entries(nuevas)) {
+    nuevas[nombre] = par.map((v, i) => {
+      const antes = previas[nombre] ? previas[nombre][i] : null;
+      if (v === null) return antes;
+      return antes === null ? v : antes * 0.8 + v * 0.2;
+    });
+  }
+  estado.medidas = nuevas;
+  return nuevas;
+}
+
+// Claridad media de la tela (0 a 255). Se calcula una vez por imagen.
+const claridades = new Map();
+function claridadDe(img) {
+  if (claridades.has(img.src)) return claridades.get(img.src);
+  const c = document.createElement("canvas");
+  c.width = c.height = 32;
+  const x = c.getContext("2d", { willReadFrequently: true });
+  x.drawImage(img, 0, 0, 32, 32);
+  const px = x.getImageData(0, 0, 32, 32).data;
+  let suma = 0, n = 0;
+  for (let i = 0; i < px.length; i += 4) {
+    if (px[i + 3] > 128) { suma += 0.3 * px[i] + 0.59 * px[i + 1] + 0.11 * px[i + 2]; n++; }
+  }
+  const claridad = n ? suma / n : 128;
+  claridades.set(img.src, claridad);
+  return claridad;
+}
+
+// El brazo va por delante de la tela, tenga manga o no: se borra entero (el color no
+// alcanza para reconocerlo si la persona lleva un buzo o una campera)
+function borrarBrazos(g, tieneMangas) {
+  ctxPrenda.globalCompositeOperation = "destination-out";
+  ctxPrenda.lineWidth = g.distSh * 0.22;
+  ctxPrenda.lineCap = "round";
+  ctxPrenda.lineJoin = "round";
+  ctxPrenda.strokeStyle = "#000";
+  const desde = g.distSh * (tieneMangas ? 0.62 : 0.30);
+  for (const [a, b] of Malla.tramosDeBrazos(g)) {
+    // El tramo del hombro al codo empieza más abajo: arriba, hombro y tela son uno
+    const esHombro = a === g.shL || a === g.shR;
+    const largoTramo = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    if (largoTramo < 1) continue;
+    const d = esHombro ? Math.min(largoTramo, desde) : 0;
+    ctxPrenda.beginPath();
+    ctxPrenda.moveTo(a[0] + (b[0] - a[0]) / largoTramo * d, a[1] + (b[1] - a[1]) / largoTramo * d);
+    ctxPrenda.lineTo(b[0], b[1]);
+    ctxPrenda.stroke();
+  }
+}
+
+// Volumen: el cuerpo es redondo, así que los costados reciben menos luz. Una sombra casi
+// no se nota sobre una tela negra, y por eso en la tela oscura además se suma luz al centro.
+function darVolumen(g, img, tieneMangas) {
+  const lat = Malla.latDelTorso(g);
+  const oscura = claridadDe(img) < 90;
+  const fuerte = oscura ? 0.34 : 0.20;
+  const c = [g.cuello[0] + g.uTorso[0] * g.distTorso * 0.5, g.cuello[1] + g.uTorso[1] * g.distTorso * 0.5];
+  const m = g.distSh * (tieneMangas ? 0.85 : 0.62);  // con mangas, la sombra no se come las mangas
+  const degrade = () => ctxPrenda.createLinearGradient(c[0] - lat[0] * m, c[1] - lat[1] * m, c[0] + lat[0] * m, c[1] + lat[1] * m);
+  ctxPrenda.globalCompositeOperation = "source-atop";
+  const sombra = degrade();
+  sombra.addColorStop(0, `rgba(0,0,0,${fuerte})`);
+  sombra.addColorStop(0.25, `rgba(0,0,0,${fuerte / 4})`);
+  sombra.addColorStop(0.5, "rgba(0,0,0,0)");
+  sombra.addColorStop(0.75, `rgba(0,0,0,${fuerte / 4})`);
+  sombra.addColorStop(1, `rgba(0,0,0,${fuerte})`);
+  ctxPrenda.fillStyle = sombra;
+  ctxPrenda.fillRect(0, 0, lienzo.width, lienzo.height);
+  if (oscura) {
+    const luz = degrade();
+    luz.addColorStop(0.1, "rgba(255,255,255,0)");
+    luz.addColorStop(0.5, "rgba(255,255,255,0.09)");
+    luz.addColorStop(0.9, "rgba(255,255,255,0)");
+    ctxPrenda.fillStyle = luz;
+    ctxPrenda.fillRect(0, 0, lienzo.width, lienzo.height);
+  }
 }
 
 function detectar(ahora) {
@@ -213,7 +300,7 @@ function detectar(ahora) {
   const resultado = estado.detector.detectForVideo(fuente, ahora);
   try {
     const lms = resultado.landmarks && resultado.landmarks[0];
-    if (!lms) { estado.hayPersona = false; return; }
+    if (!lms) { estado.hayPersona = false; estado.medidas = null; return; }
     const W = lienzo.width, H = lienzo.height;
     const pts = {}, vis = {};
     for (const [nombre, i] of Object.entries(PUNTOS)) {
@@ -235,6 +322,7 @@ function dibujarPrenda() {
   if (!img.complete || !img.naturalWidth || !estado.puntos) return;
   const W = lienzo.width, H = lienzo.height;
   const g = Malla.geometriaCorporal(estado.puntos.pts, estado.puntos.vis, W, H);
+  g.medidas = actualizarMedidas(g);
   const dst = Malla.puntosDestino(g, p, estado.talle, estado.ajuste);
   if (fotoDemo) document.body.dataset.malla = JSON.stringify({ dst, g });  // para revisar la malla en el modo foto
   ctxPrenda.setTransform(1, 0, 0, 1, 0, 0);
@@ -245,10 +333,13 @@ function dibujarPrenda() {
   if (estado.silueta) {
     ctxPrenda.globalCompositeOperation = "destination-in";
     ctxPrenda.drawImage(capaSilueta, 0, 0);
+    borrarBrazos(g, p.tiene_mangas);
   }
+  darVolumen(g, img, p.tiene_mangas);
   // La prenda nunca tapa la cara
   if (g.medioCara && g.menton && g.nariz) {
     ctxPrenda.globalCompositeOperation = "destination-out";
+    ctxPrenda.fillStyle = "#000";
     const alto = Math.hypot(g.menton[0] - g.nariz[0], g.menton[1] - g.nariz[1]) * 1.25;
     ctxPrenda.beginPath();
     ctxPrenda.ellipse(g.nariz[0], g.nariz[1], g.medioCara, alto, Math.atan2(g.uSh[1], g.uSh[0]), 0, Math.PI * 2);

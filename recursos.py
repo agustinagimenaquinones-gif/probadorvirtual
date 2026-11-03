@@ -8,12 +8,7 @@ import sys
 import glob
 import urllib.request
 
-from crear_prendas import (
-    procesar_top_champagne_si_existe,
-    procesar_polo_azul_marino_si_existe,
-    procesar_polo_ralph_lauren_si_existe,
-    procesar_top_asimetrico_negro_si_existe
-)
+from crear_prendas import procesar_polo_ralph_lauren_si_existe
 from config import (
     MODEL_FILENAME,
     MODEL_URL,
@@ -52,13 +47,11 @@ def asegurar_recursos():
 
     # Preparar las fotos de prendas que lo necesitan. Las remeras dibujadas por
     # programa ya no se generan: el catálogo usa sólo fotos de prendas reales
-    # (para agregar prendas nuevas, ver importar_prendas.py).
+    # (para agregar prendas nuevas, ver importar_coleccion.py). Las prendas retiradas
+    # no se vuelven a generar: si no, reaparecerían en el catálogo al abrir el programa.
     if not glob.glob(os.path.join(CARPETA_PRENDAS, "*.png")):
-        print("[AVISO] No hay prendas en 'prendas/'. Ejecutá importar_prendas.py y cargar_prendas_mysql.py.")
-    procesar_polo_azul_marino_si_existe()
+        print("[AVISO] No hay prendas en 'prendas/'. Ejecutá importar_coleccion.py y cargar_prendas_mysql.py.")
     procesar_polo_ralph_lauren_si_existe()
-    procesar_top_champagne_si_existe()
-    procesar_top_asimetrico_negro_si_existe()
 
 
 

@@ -23,7 +23,7 @@ import re
 import string
 from decimal import Decimal, ROUND_HALF_UP
 
-from conexion_mysql import conectar, clave_variante
+from conexion_db import conectar, clave_variante
 
 CUPON_BIENVENIDA_PCT = 15
 CUPON_CUMPLEANOS_PCT = 20

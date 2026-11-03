@@ -14,6 +14,7 @@ from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
 
 from body_measure import medir_silueta, estimar_figura, MedidasSuavizadas, ancho_total, OneEuroFilter
+from clothing_geometry import es_cuello_halter
 
 class PoseTracker:
     """
@@ -844,6 +845,12 @@ class PoseTracker:
             "p_hip_r": p_hip_r,
             "p_neck_base": p_neck_base,
             "p_hip_mid": p_hip_mid,
+            # Puntos que MediaPipe no da: se estiman con los hombros, el cuello y el torso
+            "p_clavicula_l": p_neck_base + (p_sh_l - p_neck_base) * 0.55 + u_torso * (dist_sh * 0.04),
+            "p_clavicula_r": p_neck_base + (p_sh_r - p_neck_base) * 0.55 + u_torso * (dist_sh * 0.04),
+            "p_pecho_centro": p_neck_base + u_torso * (dist_torso * 0.36),
+            "p_axila_l": p_sh_l + u_torso * (dist_torso * 0.30) + u_sh * (dist_sh * 0.06),
+            "p_axila_r": p_sh_r + u_torso * (dist_torso * 0.30) - u_sh * (dist_sh * 0.06),
             "dist_sh": dist_sh,
             "dist_torso": dist_torso,
             "inclinacion_deg": inclinacion_deg,
@@ -885,6 +892,8 @@ class PoseTracker:
         if any(k not in src or k not in dst_pts for k in claves):
             return
         a_l, a_r, ruedo = (np.asarray(src[k], np.float32) for k in claves)
+        if "ruedo_cuerpo" in src:  # lo que cae más abajo del ruedo (un pañuelo) no cuenta para el largo
+            ruedo = np.asarray(src["ruedo_cuerpo"], np.float32)
         ancho_src = float(abs(a_r[0] - a_l[0]))
         y_axilas = float(a_l[1] + a_r[1]) * 0.5
         largo_src = float(ruedo[1]) - y_axilas
@@ -900,6 +909,36 @@ class PoseTracker:
             if k in dst_pts:
                 dst_pts[k] = (axilas_dst + u_lat * ((float(x) - cx) * escala_x)
                               + u_torso * ((float(y) - y_axilas) * escala_y)).astype(np.float32)
+
+    @staticmethod
+    def _anclar_cuello_halter(dst_pts, src, centro_cuello, u_lat, u_up, ancho_cuello, altura_cuello, p_menton):
+        """
+        Top halter: la tira se ancla al cuello de la persona. Arriba la tela toma el ancho
+        y la posición del cuello medido, y esa corrección se va apagando hasta la axila,
+        donde manda el pecho: la tela sigue siendo una sola, sin cortes entre el torso y
+        el cuello. Como usa el cuello suavizado, la tira acompaña a la cabeza sin temblar.
+        """
+        y_arriba = float(src["collar_top_mid"][1])
+        y_axila = float(src["armpit_l"][1] + src["armpit_r"][1]) * 0.5
+        medio_src = abs(float(src["collar_top_r"][0]) - float(src["collar_top_l"][0])) * 0.5
+        ancho_src = abs(float(src["armpit_r"][0]) - float(src["armpit_l"][0]))
+        ancho_dst = float(np.linalg.norm(dst_pts["armpit_r"] - dst_pts["armpit_l"]))
+        if y_axila - y_arriba < 1.0 or medio_src < 1.0 or ancho_src < 1.0:
+            return
+        escala_torso = ancho_dst / ancho_src
+        escala_cuello = ancho_cuello / medio_src
+        cx = float(src["collar_top_mid"][0])
+        # La tira sube por el cuello hasta poco antes del mentón (ver componer_prenda_con_capas)
+        centro = np.asarray(centro_cuello, np.float32)
+        hasta_menton = float((np.asarray(p_menton, np.float32) - centro) @ u_up)
+        destino = centro + u_up * min(altura_cuello * 1.35, max(altura_cuello * 0.5, hasta_menton * 0.92))
+        corrimiento = destino - dst_pts["collar_top_mid"]
+        for k in ("collar_top_mid", "collar_top_l", "collar_top_r", "collar_tip_l", "collar_tip_r", "neck_v",
+                  "shoulder_l", "shoulder_r", "chest_mid"):
+            x, y = float(src[k][0]), float(src[k][1])
+            t = float(np.clip((y_axila - y) / (y_axila - y_arriba), 0.0, 1.0))
+            t = t * t * (3.0 - 2.0 * t)
+            dst_pts[k] = dst_pts[k] + corrimiento * t + u_lat * ((x - cx) * (escala_cuello - escala_torso) * t)
 
     @staticmethod
     def _escote_como_la_prenda(dst_pts, src, p_neck_base, u_sh, u_up, u_torso, ancho_cuello, altura_cuello,
@@ -937,7 +976,7 @@ class PoseTracker:
     def calcular_puntos_destino_malla(self, info, tiene_mangas=True, factor_escala=1.0,
                                       holgura_talle=1.05, calce="regular", puntos_prenda=None):
         """
-        Calcula los 23 puntos destino de la prenda en el cuadro de la cámara.
+        Calcula los 31 puntos destino de la prenda en el cuadro de la cámara.
 
         - Si hay medidas de la silueta (pecho, cintura, cadera, brazo), los costados
           de la prenda se apoyan sobre el borde REAL del cuerpo, más la holgura del
@@ -1087,6 +1126,12 @@ class PoseTracker:
         if puntos_prenda is not None and not tiene_mangas:
             self._parte_alta_como_la_prenda(dst_pts, puntos_prenda, u_lat, u_torso, u_up, p_neck_base,
                                             altura_cuello)
+            if es_cuello_halter(puntos_prenda):
+                p_menton = info.get("p_menton")
+                if p_menton is None:
+                    p_menton = info["nose"] + (p_neck_base - info["nose"]) * 0.55
+                self._anclar_cuello_halter(dst_pts, puntos_prenda, centro_cuello, u_lat, u_up, ancho_cuello,
+                                           altura_cuello, p_menton)
         elif puntos_prenda is not None:
             self._escote_como_la_prenda(dst_pts, puntos_prenda, centro_cuello, u_sh, u_up, u_torso,
                                         ancho_cuello, altura_cuello, d_torso_real)

@@ -5,8 +5,9 @@
 # Uso (desde la carpeta del proyecto):
 #     .venv\Scripts\python.exe importar_prendas.py
 #
-# Toma las fotos de 'fotos_originales/' y deja en 'prendas/' cada prenda recortada,
-# derecha y con fondo transparente. Hay dos tipos de foto:
+# COLECCIÓN ANTERIOR (retirada del catálogo): toma las fotos de 'fotos_originales/' y
+# deja en 'prendas_retiradas/' cada prenda recortada, derecha y con fondo transparente.
+# Las prendas actuales se recortan con importar_coleccion.py. Hay dos tipos de foto:
 #
 #   * PRENDA SUELTA (sobre una mesa, alfombra o fondo liso): se recorta con GrabCut.
 #     Cada foto puede llevar marcas a mano: zonas que SEGURO son prenda (por ejemplo,
@@ -27,7 +28,7 @@ from vista_espalda import generar_espalda_automatica
 from limpieza_prenda import extender_color_de_la_tela
 
 CARPETA_FOTOS = "fotos_originales"
-CARPETA_PRENDAS = "prendas"
+CARPETA_PRENDAS = "prendas_retiradas"
 LADO_MAXIMO_SALIDA = 1000
 LADO_GRABCUT = 900
 

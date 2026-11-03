@@ -24,12 +24,15 @@ TONO_ESCENA = 0.40
 
 # Efecto de volumen: cuánto se oscurece la tela hacia los costados del cuerpo
 INTENSIDAD_VOLUMEN = 0.10
+# Cuánta luz se suma (niveles de 0 a 255) para que se vea el volumen en una tela oscura
+INTENSIDAD_RELIEVE_OSCURO = 24.0
 
 # Sombra que la tela proyecta sobre el cuerpo en sus bordes (mangas, ruedo, cuello)
 INTENSIDAD_SOMBRA_CONTACTO = 0.30
 
 
-def recortar_prenda_a_silueta(parche_rgba, xmin, ymin, mascara, info_anatomica, talle="M", frame_bgr=None):
+def recortar_prenda_a_silueta(parche_rgba, xmin, ymin, mascara, info_anatomica, talle="M", frame_bgr=None,
+                              sin_mangas=False):
     """
     Recorta el canal alfa de la prenda para que no "flote" fuera del cuerpo.
     - Torso: puede sobresalir del borde de la silueta sólo el margen del talle.
@@ -96,28 +99,19 @@ def recortar_prenda_a_silueta(parche_rgba, xmin, ymin, mascara, info_anatomica, 
     # la tela del torso (por ejemplo, con los brazos colgando al costado del cuerpo).
     d_sh = float(info_anatomica["dist_sh"])
     medidas = info_anatomica.get("medidas") or {}
-    grosor_brazo = int(max(6, (medidas.get("brazo") or d_sh * 0.22) * 0.85))
+    grosor_brazo = int(max(6, medidas.get("brazo") or d_sh * 0.22))
     brazos_delante = np.zeros_like(cuerpo)
-    centro_brazos = np.zeros_like(cuerpo)
-    grosor_centro = int(max(4, grosor_brazo * 0.5))
     for hombro, codo, muneca in (("p_sh_l", "p_elb_l", "p_wri_l"), ("p_sh_r", "p_elb_r", "p_wri_r")):
         p_sh, p_elb, p_wri = (info_anatomica[k] - offset for k in (hombro, codo, muneca))
         eje = p_elb - p_sh
         largo = float(np.linalg.norm(eje))
         if largo < 1.0:
             continue
-        fin_manga = p_sh + eje / largo * min(largo, d_sh * 0.62)
+        # Sin mangas no hay tela que le corresponda al brazo: lo tapa desde el hombro
+        fin_manga = p_sh + eje / largo * min(largo, d_sh * (0.30 if sin_mangas else 0.62))
         for a_, b_ in ((fin_manga, p_elb), (p_elb, p_wri)):
             cv2.line(brazos_delante, tuple(np.int32(a_)), tuple(np.int32(b_)), 255, grosor_brazo)
-            cv2.line(centro_brazos, tuple(np.int32(a_)), tuple(np.int32(b_)), 255, grosor_centro)
-    # Dentro de la franja del brazo, sólo es "brazo" lo que tiene color de piel (más el
-    # centro del brazo): así la ropa de la persona junto al brazo no borra la prenda.
-    zona = frame_bgr[ymin:ymin + alto_p, xmin:xmin + ancho_p] if frame_bgr is not None else None
-    if zona is not None and zona.shape[:2] == (alto_p, ancho_p):
-        ycrcb = cv2.cvtColor(zona, cv2.COLOR_BGR2YCrCb)
-        piel = ((ycrcb[:, :, 1] >= 130) & (ycrcb[:, :, 1] <= 180) &
-                (ycrcb[:, :, 2] >= 75) & (ycrcb[:, :, 2] <= 135)).astype(np.uint8) * 255
-        brazos_delante = np.maximum(cv2.bitwise_and(brazos_delante, piel), centro_brazos)
+    # El brazo entero, con o sin manga: la ropa de la persona no siempre tiene color de piel
     brazos_delante = cv2.bitwise_and(brazos_delante, cuerpo)
     permitido[brazos_delante > 0] = 0
 
@@ -184,10 +178,17 @@ def armonizar_con_la_escena(frame_bgr, parche_rgba, gamma=GAMMA_PRENDA, tono=TON
     if len(muestra) > 100:
         medias = muestra.mean(axis=0) + 1e-3
         ganancias = np.clip(1.0 + (medias / float(medias.mean()) - 1.0) * tono, 0.85, 1.15)
-    # Factor de aclarado según la luminosidad de cada píxel: curva(L) / L
+    # Factor de aclarado según la luminosidad de cada píxel: curva(L) / L.
+    # Los negros no se aclaran: si no, una prenda negra se ve gris o marrón.
     niveles = np.arange(256, dtype=np.float32)
     aclarado = 255.0 * np.power(niveles / 255.0, gamma) / np.maximum(niveles, 1.0)
+    aclarado = 1.0 + (aclarado - 1.0) * np.clip((niveles - 30.0) / 60.0, 0.0, 1.0)
     bgr = np.ascontiguousarray(parche_rgba[:, :, :3])
+    # Lo mismo con el tono de la escena: en una tela oscura se notaría como un color que no tiene
+    tela = parche_rgba[:, :, 3] > 128
+    if tela.any():
+        claridad = float(np.clip(np.median(cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY)[tela]) / 110.0, 0.15, 1.0))
+        ganancias = 1.0 + (ganancias - 1.0) * claridad
     factor = aclarado[cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY)]
     if solo_factor:
         return factor, ganancias
@@ -215,6 +216,36 @@ def sombreado_volumen(parche_rgba, dist_sh, intensidad=INTENSIDAD_VOLUMEN, solo_
     resultado = parche_rgba.copy()
     resultado[:, :, :3] = cv2.multiply(np.ascontiguousarray(parche_rgba[:, :, :3]),
                                        cv2.merge([factor, factor, factor]), dtype=cv2.CV_8U)
+    return resultado
+
+
+def relieve_en_tela_oscura(parche_rgba, factor_cuerpo, intensidad=INTENSIDAD_RELIEVE_OSCURO):
+    """
+    Una sombra multiplica el color: sobre una tela negra casi no se nota y la prenda se ve
+    plana. En la tela oscura el volumen del cuerpo se SUMA: más luz en lo que sobresale y
+    donde la cámara ve luz sobre la persona, nada en los costados, que dan la vuelta.
+    """
+    if parche_rgba is None or intensidad <= 0:
+        return parche_rgba
+    bgr = np.ascontiguousarray(parche_rgba[:, :, :3])
+    gris = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY).astype(np.float32)
+    cuanto = np.clip((90.0 - gris) / 60.0, 0.0, 1.0)
+    tela = (parche_rgba[:, :, 3] > 128).astype(np.uint8)
+    if not tela.any() or float(cuanto[tela > 0].mean()) < 0.05:
+        return parche_rgba
+    distancia = cv2.distanceTransform(tela, cv2.DIST_L2, 3)
+    d_max = float(distancia.max())
+    if d_max < 4.0:
+        return parche_rgba
+    # Altura de la tela sobre el cuerpo: 0 en el contorno, 1 en el centro (perfil redondo)
+    t = np.clip(distancia / d_max, 0.0, 1.0)
+    altura = cv2.GaussianBlur(np.sqrt(1.0 - (1.0 - t) ** 2), (0, 0), max(1.0, d_max * 0.12))
+    luz = altura ** 2
+    if factor_cuerpo is not None:
+        luz = luz + (factor_cuerpo - 1.0) * 2.5
+    suma = np.clip(luz, 0.0, 1.3) * intensidad * cuanto
+    resultado = parche_rgba.copy()
+    resultado[:, :, :3] = np.clip(bgr.astype(np.float32) + suma[:, :, None], 0, 255).astype(np.uint8)
     return resultado
 
 
@@ -332,13 +363,16 @@ def poner_pelo_delante(parche_alfa, xmin, ymin, info_anatomica):
 
 
 def componer_prenda_con_capas(frame_bgr, parche_rgba, xmin, ymin, xmax, ymax, info_anatomica,
-                              talle="M", recortar_silueta=True, sombras=True, cuello_por_delante=False):
+                              talle="M", recortar_silueta=True, sombras=True, cuello_por_delante=False,
+                              tira_al_cuello=False, sin_mangas=False):
     """
     Integra la prenda sobre el cuerpo en el cuadro de la cámara respetando las capas anatómicas:
       1. Coloca la prenda sobre el torso, con la luz de la escena y una sombra suave en sus bordes.
       2. Protege el cuello y mentón para que el cuello de la prenda no cubra la cara.
          Con cuello_por_delante (prendas con cuello, vistas de frente), el cuello de la
          persona tapa además la parte de atrás del cuello de la prenda.
+         Con tira_al_cuello (top halter), la tela va por delante del cuello con borde
+         definido y sólo se corta en el mentón.
       3. Conserva los antebrazos y manos por delante cuando la persona cruza los brazos
          o los coloca al frente del torso.
     """
@@ -351,12 +385,14 @@ def componer_prenda_con_capas(frame_bgr, parche_rgba, xmin, ymin, xmax, ymax, in
     # 0. Prenda pegada al cuerpo: recorte a la silueta y sombras del cuerpo
     mascara = (info_anatomica or {}).get("mascara")
     if recortar_silueta and mascara is not None:
-        parche_rgba = recortar_prenda_a_silueta(parche_rgba, xmin, ymin, mascara, info_anatomica, talle, frame_bgr)
+        parche_rgba = recortar_prenda_a_silueta(parche_rgba, xmin, ymin, mascara, info_anatomica, talle, frame_bgr,
+                                                sin_mangas)
     if sombras:
         # Luz de la escena + sombras del cuerpo + volumen, combinados en UNA sola pasada
         # sobre la tela (antes eran tres: es lo que más tiempo se llevaba por cuadro)
         factor, ganancias = armonizar_con_la_escena(frame_bgr, parche_rgba, solo_factor=True)
-        for extra in (aplicar_sombras_del_cuerpo(frame_bgr, parche_rgba, xmin, ymin, solo_factor=True),
+        sombras_cuerpo = aplicar_sombras_del_cuerpo(frame_bgr, parche_rgba, xmin, ymin, solo_factor=True)
+        for extra in (sombras_cuerpo,
                       sombreado_volumen(parche_rgba, float((info_anatomica or {}).get("dist_sh", 200.0)),
                                         solo_factor=True) if info_anatomica else None):
             if extra is not None:
@@ -364,6 +400,7 @@ def componer_prenda_con_capas(frame_bgr, parche_rgba, xmin, ymin, xmax, ymax, in
         parche_rgba = parche_rgba.copy()
         parche_rgba[:, :, :3] = cv2.multiply(np.ascontiguousarray(parche_rgba[:, :, :3]),
                                              cv2.merge([factor * float(g) for g in ganancias]), dtype=cv2.CV_8U)
+        parche_rgba = relieve_en_tela_oscura(parche_rgba, sombras_cuerpo)
 
     # 1. Recorte de la región de interés (ROI)
     roi_fondo = resultado[ymin:ymax, xmin:xmax]
@@ -377,12 +414,17 @@ def componer_prenda_con_capas(frame_bgr, parche_rgba, xmin, ymin, xmax, ymax, in
         p_neck = info_anatomica["p_neck_base"]
         # Límite inferior del mentón estimado entre nariz y base del cuello
         chin_y = p_nose[1] + (p_neck[1] - p_nose[1]) * 0.70
+        if tira_al_cuello:
+            menton = info_anatomica.get("p_menton")
+            chin_y = menton[1] if menton is not None else p_nose[1] + (p_neck[1] - p_nose[1]) * 0.55
 
         # En coordenadas del parche local
         chin_local_y = int(chin_y - ymin)
         if 0 <= chin_local_y < parche_rgba.shape[0]:
             # Suavizar a cero cualquier píxel de la prenda por encima del mentón
             fade_len = max(5, int((p_neck[1] - p_nose[1]) * 0.20))
+            if tira_al_cuello:
+                fade_len = 3
             # Sólo en una franja alrededor del cuello y la cara: así no se borra
             # una manga cuando la persona levanta el brazo por encima del mentón.
             medio_franja = float(info_anatomica.get("medio_cuello", info_anatomica.get("dist_sh", 200) * 0.2)) * 2.4
