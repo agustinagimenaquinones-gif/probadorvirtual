@@ -1,6 +1,602 @@
 {
  "prendas": [
   {
+   "codigo": "buzo_capucha_bordo",
+   "id_prenda": 56,
+   "sku": "VV-0019",
+   "nombre": "Buzo con Capucha Bordó",
+   "descripcion": "Buzo de frisa con capucha, cordones y bolsillo canguro.",
+   "categoria": "Buzos",
+   "genero": "unisex",
+   "calce": "regular",
+   "precio": 45900,
+   "colores": [
+    {
+     "nombre": "Bordó",
+     "hex": "#6B1E2E",
+     "es_foto": true
+    },
+    {
+     "nombre": "Negro",
+     "hex": "#14141A",
+     "es_foto": false
+    }
+   ],
+   "talles": [
+    "S",
+    "M",
+    "L",
+    "XL"
+   ],
+   "medidas_talles": {
+    "S": {
+     "pecho": 98,
+     "cintura": 94,
+     "cadera": 98,
+     "hombros": 44,
+     "largo": 66
+    },
+    "M": {
+     "pecho": 104,
+     "cintura": 100,
+     "cadera": 104,
+     "hombros": 46,
+     "largo": 68
+    },
+    "L": {
+     "pecho": 110,
+     "cintura": 106,
+     "cadera": 110,
+     "hombros": 48,
+     "largo": 70
+    },
+    "XL": {
+     "pecho": 116,
+     "cintura": 112,
+     "cadera": 116,
+     "hombros": 50,
+     "largo": 72
+    }
+   },
+   "stock": {
+    "Negro|L": 5,
+    "Negro|M": 5,
+    "Negro|S": 5,
+    "Bordó|L": 5,
+    "Bordó|M": 5,
+    "Bordó|S": 5,
+    "Negro|XL": 5,
+    "Bordó|XL": 5
+   },
+   "imagenes": {
+    "Bordó": "prendas/buzo_capucha_bordo__bordo.webp",
+    "Negro": "prendas/buzo_capucha_bordo__negro.webp"
+   },
+   "ancho": 617,
+   "alto": 760,
+   "tiene_mangas": true,
+   "puntos": {
+    "collar_top_mid": [
+     307.7,
+     5.0
+    ],
+    "collar_top_l": [
+     148.9,
+     107.3
+    ],
+    "collar_top_r": [
+     473.8,
+     107.3
+    ],
+    "collar_tip_l": [
+     248.6,
+     113.7
+    ],
+    "collar_tip_r": [
+     366.7,
+     113.7
+    ],
+    "neck_v": [
+     307.7,
+     149.9
+    ],
+    "chest_mid": [
+     307.7,
+     292.4
+    ],
+    "torso_mid": [
+     307.7,
+     515.4
+    ],
+    "hem_mid": [
+     307.7,
+     738.4
+    ],
+    "shoulder_l": [
+     122.2,
+     118.9
+    ],
+    "shoulder_r": [
+     491.4,
+     115.6
+    ],
+    "sleeve_top_l": [
+     61.6,
+     181.3
+    ],
+    "sleeve_top_r": [
+     552.0,
+     158.0
+    ],
+    "bicep_out_l": [
+     9.1,
+     434.9
+    ],
+    "bicep_out_r": [
+     607.8,
+     436.5
+    ],
+    "bicep_in_l": [
+     106.8,
+     434.9
+    ],
+    "bicep_in_r": [
+     504.7,
+     436.5
+    ],
+    "sleeve_cuff_out_l": [
+     20.0,
+     751.7
+    ],
+    "sleeve_cuff_out_r": [
+     589.5,
+     754.2
+    ],
+    "sleeve_cuff_in_l": [
+     91.5,
+     751.7
+    ],
+    "sleeve_cuff_in_r": [
+     518.0,
+     754.2
+    ],
+    "armpit_l": [
+     122.2,
+     292.4
+    ],
+    "armpit_r": [
+     491.4,
+     292.4
+    ],
+    "underbust_l": [
+     122.2,
+     403.9
+    ],
+    "underbust_r": [
+     491.4,
+     403.9
+    ],
+    "waist_l": [
+     122.2,
+     515.4
+    ],
+    "waist_r": [
+     491.4,
+     515.4
+    ],
+    "high_hip_l": [
+     122.2,
+     640.3
+    ],
+    "high_hip_r": [
+     491.4,
+     640.3
+    ],
+    "hem_l": [
+     122.2,
+     738.4
+    ],
+    "hem_r": [
+     491.4,
+     738.4
+    ]
+   }
+  },
+  {
+   "codigo": "buzo_cuello_redondo_marron",
+   "id_prenda": 57,
+   "sku": "VV-0020",
+   "nombre": "Buzo Cuello Redondo",
+   "descripcion": "Buzo liso de cuello redondo, de calce amplio.",
+   "categoria": "Buzos",
+   "genero": "unisex",
+   "calce": "holgado",
+   "precio": 39900,
+   "colores": [
+    {
+     "nombre": "Marrón",
+     "hex": "#4A2A10",
+     "es_foto": true
+    },
+    {
+     "nombre": "Crema",
+     "hex": "#F0E9C4",
+     "es_foto": false
+    }
+   ],
+   "talles": [
+    "S",
+    "M",
+    "L",
+    "XL"
+   ],
+   "medidas_talles": {
+    "S": {
+     "pecho": 112,
+     "cintura": 112,
+     "cadera": 112,
+     "hombros": 52,
+     "largo": 70
+    },
+    "M": {
+     "pecho": 118,
+     "cintura": 118,
+     "cadera": 118,
+     "hombros": 54,
+     "largo": 72
+    },
+    "L": {
+     "pecho": 124,
+     "cintura": 124,
+     "cadera": 124,
+     "hombros": 56,
+     "largo": 74
+    },
+    "XL": {
+     "pecho": 130,
+     "cintura": 130,
+     "cadera": 130,
+     "hombros": 58,
+     "largo": 76
+    }
+   },
+   "stock": {
+    "Crema|L": 5,
+    "Crema|M": 5,
+    "Crema|S": 5,
+    "Crema|XL": 5,
+    "Marrón|L": 5,
+    "Marrón|M": 5,
+    "Marrón|S": 5,
+    "Marrón|XL": 5
+   },
+   "imagenes": {
+    "Marrón": "prendas/buzo_cuello_redondo_marron__marron.webp",
+    "Crema": "prendas/buzo_cuello_redondo_marron__crema.webp"
+   },
+   "ancho": 665,
+   "alto": 760,
+   "tiene_mangas": true,
+   "puntos": {
+    "collar_top_mid": [
+     331.4,
+     9.6
+    ],
+    "collar_top_l": [
+     257.8,
+     10.6
+    ],
+    "collar_top_r": [
+     404.9,
+     6.7
+    ],
+    "collar_tip_l": [
+     272.5,
+     96.4
+    ],
+    "collar_tip_r": [
+     390.2,
+     96.4
+    ],
+    "neck_v": [
+     331.4,
+     125.4
+    ],
+    "chest_mid": [
+     331.4,
+     252.9
+    ],
+    "torso_mid": [
+     331.4,
+     502.6
+    ],
+    "hem_mid": [
+     331.4,
+     752.3
+    ],
+    "shoulder_l": [
+     151.2,
+     57.8
+    ],
+    "shoulder_r": [
+     519.2,
+     58.8
+    ],
+    "sleeve_top_l": [
+     86.0,
+     117.5
+    ],
+    "sleeve_top_r": [
+     584.4,
+     120.4
+    ],
+    "bicep_out_l": [
+     35.6,
+     401.7
+    ],
+    "bicep_out_r": [
+     632.9,
+     403.6
+    ],
+    "bicep_in_l": [
+     129.1,
+     401.7
+    ],
+    "bicep_in_r": [
+     538.0,
+     403.6
+    ],
+    "sleeve_cuff_out_l": [
+     30.8,
+     744.6
+    ],
+    "sleeve_cuff_out_r": [
+     630.9,
+     749.4
+    ],
+    "sleeve_cuff_in_l": [
+     106.9,
+     744.6
+    ],
+    "sleeve_cuff_in_r": [
+     556.8,
+     749.4
+    ],
+    "armpit_l": [
+     151.2,
+     252.9
+    ],
+    "armpit_r": [
+     519.2,
+     252.9
+    ],
+    "underbust_l": [
+     151.2,
+     377.8
+    ],
+    "underbust_r": [
+     519.2,
+     377.8
+    ],
+    "waist_l": [
+     151.2,
+     502.6
+    ],
+    "waist_r": [
+     519.2,
+     502.6
+    ],
+    "high_hip_l": [
+     151.2,
+     642.4
+    ],
+    "high_hip_r": [
+     519.2,
+     642.4
+    ],
+    "hem_l": [
+     151.2,
+     752.3
+    ],
+    "hem_r": [
+     519.2,
+     752.3
+    ]
+   }
+  },
+  {
+   "codigo": "buzo_capucha_corto_negro",
+   "id_prenda": 58,
+   "sku": "VV-0021",
+   "nombre": "Buzo Corto con Capucha Negro",
+   "descripcion": "Buzo corto con capucha y cintura elastizada.",
+   "categoria": "Buzos",
+   "genero": "mujer",
+   "calce": "regular",
+   "precio": 42900,
+   "colores": [
+    {
+     "nombre": "Negro",
+     "hex": "#14141A",
+     "es_foto": true
+    }
+   ],
+   "talles": [
+    "XS",
+    "S",
+    "M",
+    "L"
+   ],
+   "medidas_talles": {
+    "XS": {
+     "pecho": 80,
+     "cintura": 66,
+     "cadera": 84,
+     "hombros": 35,
+     "largo": 48
+    },
+    "S": {
+     "pecho": 84,
+     "cintura": 70,
+     "cadera": 88,
+     "hombros": 36,
+     "largo": 50
+    },
+    "M": {
+     "pecho": 88,
+     "cintura": 74,
+     "cadera": 92,
+     "hombros": 37,
+     "largo": 52
+    },
+    "L": {
+     "pecho": 94,
+     "cintura": 80,
+     "cadera": 98,
+     "hombros": 39,
+     "largo": 54
+    }
+   },
+   "stock": {
+    "Negro|L": 5,
+    "Negro|M": 5,
+    "Negro|S": 5,
+    "Negro|XS": 5
+   },
+   "imagenes": {
+    "Negro": "prendas/buzo_capucha_corto_negro__negro.webp"
+   },
+   "ancho": 743,
+   "alto": 760,
+   "tiene_mangas": true,
+   "puntos": {
+    "collar_top_mid": [
+     371.0,
+     4.5
+    ],
+    "collar_top_l": [
+     234.4,
+     216.3
+    ],
+    "collar_top_r": [
+     510.8,
+     217.0
+    ],
+    "collar_tip_l": [
+     319.0,
+     186.0
+    ],
+    "collar_tip_r": [
+     423.0,
+     186.0
+    ],
+    "neck_v": [
+     371.0,
+     246.5
+    ],
+    "chest_mid": [
+     371.0,
+     323.4
+    ],
+    "torso_mid": [
+     371.0,
+     443.7
+    ],
+    "hem_mid": [
+     371.0,
+     564.0
+    ],
+    "shoulder_l": [
+     211.8,
+     226.0
+    ],
+    "shoulder_r": [
+     537.0,
+     229.8
+    ],
+    "sleeve_top_l": [
+     138.5,
+     306.4
+    ],
+    "sleeve_top_r": [
+     610.3,
+     312.4
+    ],
+    "bicep_out_l": [
+     63.1,
+     491.9
+    ],
+    "bicep_out_r": [
+     678.9,
+     491.9
+    ],
+    "bicep_in_l": [
+     144.6,
+     491.9
+    ],
+    "bicep_in_r": [
+     601.5,
+     491.9
+    ],
+    "sleeve_cuff_out_l": [
+     17.3,
+     754.7
+    ],
+    "sleeve_cuff_out_r": [
+     728.5,
+     754.0
+    ],
+    "sleeve_cuff_in_l": [
+     77.4,
+     754.7
+    ],
+    "sleeve_cuff_in_r": [
+     666.1,
+     754.0
+    ],
+    "armpit_l": [
+     211.8,
+     323.4
+    ],
+    "armpit_r": [
+     537.0,
+     323.4
+    ],
+    "underbust_l": [
+     211.8,
+     383.5
+    ],
+    "underbust_r": [
+     537.0,
+     383.5
+    ],
+    "waist_l": [
+     211.8,
+     443.7
+    ],
+    "waist_r": [
+     537.0,
+     443.7
+    ],
+    "high_hip_l": [
+     211.8,
+     511.1
+    ],
+    "high_hip_r": [
+     537.0,
+     511.1
+    ],
+    "hem_l": [
+     211.8,
+     564.0
+    ],
+    "hem_r": [
+     537.0,
+     564.0
+    ]
+   }
+  },
+  {
    "codigo": "polo_ralph_lauren",
    "id_prenda": 1,
    "sku": "VV-0012",

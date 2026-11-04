@@ -318,6 +318,86 @@
           "hex": "#B9D3E6"
         }
       ]
+    },
+    {
+      "codigo": "buzo_capucha_bordo",
+      "sku": "VV-0019",
+      "nombre": "Buzo con Capucha Bordó",
+      "categoria": "Buzos",
+      "genero": "unisex",
+      "precio": 45900,
+      "calce": "regular",
+      "talles": [
+        "S",
+        "M",
+        "L",
+        "XL"
+      ],
+      "medidas": "regular_unisex",
+      "descripcion": "Buzo de frisa con capucha, cordones y bolsillo canguro.",
+      "color_foto": "Bordó",
+      "colores": [
+        {
+          "nombre": "Bordó",
+          "hex": "#6B1E2E"
+        },
+        {
+          "nombre": "Negro",
+          "hex": "#14141A"
+        }
+      ]
+    },
+    {
+      "codigo": "buzo_cuello_redondo_marron",
+      "sku": "VV-0020",
+      "nombre": "Buzo Cuello Redondo",
+      "categoria": "Buzos",
+      "genero": "unisex",
+      "precio": 39900,
+      "calce": "holgado",
+      "talles": [
+        "S",
+        "M",
+        "L",
+        "XL"
+      ],
+      "medidas": "oversize",
+      "descripcion": "Buzo liso de cuello redondo, de calce amplio.",
+      "color_foto": "Marrón",
+      "colores": [
+        {
+          "nombre": "Marrón",
+          "hex": "#4A2A10"
+        },
+        {
+          "nombre": "Crema",
+          "hex": "#F0E9C4"
+        }
+      ]
+    },
+    {
+      "codigo": "buzo_capucha_corto_negro",
+      "sku": "VV-0021",
+      "nombre": "Buzo Corto con Capucha Negro",
+      "categoria": "Buzos",
+      "genero": "mujer",
+      "precio": 42900,
+      "calce": "regular",
+      "talles": [
+        "XS",
+        "S",
+        "M",
+        "L"
+      ],
+      "medidas": "chomba_crop_mujer",
+      "descripcion": "Buzo corto con capucha y cintura elastizada.",
+      "color_foto": "Negro",
+      "colores": [
+        {
+          "nombre": "Negro",
+          "hex": "#14141A"
+        }
+      ]
     }
   ]
 }

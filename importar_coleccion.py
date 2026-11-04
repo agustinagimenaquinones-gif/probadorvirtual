@@ -50,6 +50,17 @@ PRENDAS = {
                  (380, 470), (374, 490), (378, 590), (358, 614), (349, 600), (347, 487), (290, 484), (183, 472),
                  (195, 440), (200, 425), (203, 360), (200, 300), (205, 270), (222, 232), (245, 208)],
     },
+    "buzo_capucha_bordo": {
+        # Fondo gris con sombra: la tela se reconoce porque tiene color y el fondo no
+        "foto": "foto_15.png", "gris_maximo": 170, "croma_minimo": 28, "rellenar_huecos": True,
+    },
+    "buzo_cuello_redondo_marron": {
+        # Hay dos buzos en la foto: el marrón está adelante, el crema se genera tiñéndolo
+        "foto": "foto_16.png", "gris_maximo": 135, "rellenar_huecos": True,
+    },
+    "buzo_capucha_corto_negro": {
+        "foto": "foto_17.png", "gris_maximo": 200, "rellenar_huecos": True,
+    },
     "remera_entallada_blanca": {
         "foto": "foto_14.webp", "gris_maximo": 250,
         "quitar": [[(800, 120), (798, 195), (808, 253), (850, 312), (917, 345), (1017, 357), (1100, 328),
@@ -86,6 +97,9 @@ def recortar(cfg):
         # Tela negra: casi sin color. Así no se lleva la piel en sombra, el pelo ni el jean
         croma = imagen.max(axis=2).astype(np.int16) - imagen.min(axis=2).astype(np.int16)
         mascara[croma > cfg["croma_maximo"]] = 0
+    if cfg.get("croma_minimo"):
+        croma = imagen.max(axis=2).astype(np.int16) - imagen.min(axis=2).astype(np.int16)
+        mascara[croma < cfg["croma_minimo"]] = 0
     if cfg.get("zona"):
         mascara = cv2.bitwise_and(mascara, _poligono(gris.shape, cfg["zona"], escala))
     for puntos in cfg.get("quitar", []):
@@ -95,12 +109,16 @@ def recortar(cfg):
         mascara[hueco > 127] = 0
 
     # Se queda con la pieza más grande y le saca los puntitos que dejó el umbral
-    if cfg.get("croma_maximo"):
+    if cfg.get("croma_maximo") or cfg.get("croma_minimo"):
         mascara = cv2.morphologyEx(mascara, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5)))
     cantidad, etiquetas, datos, _ = cv2.connectedComponentsWithStats(mascara, connectivity=8)
     if cantidad > 1:
         mascara = ((etiquetas == 1 + int(np.argmax(datos[1:, cv2.CC_STAT_AREA]))) * 255).astype(np.uint8)
     mascara = _rellenar_agujeros_chicos(mascara, mascara.size * 0.002)
+    if cfg.get("rellenar_huecos"):
+        # Etiquetas o brillos dentro de la tela: se tapa todo lo que no llega hasta el fondo
+        contornos, _ = cv2.findContours(mascara, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        cv2.drawContours(mascara, contornos, -1, 255, cv2.FILLED)
 
     # Borde suave, sin halo del fondo
     k = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))

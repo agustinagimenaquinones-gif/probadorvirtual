@@ -141,6 +141,29 @@ const Malla = (() => {
     }
   }
 
+  // Manga larga: el puño cae bastante más abajo que la mitad entre el hombro y el ruedo
+  function esMangaLarga(src) {
+    if (!src || !src.shoulder_l || !src.sleeve_cuff_out_l || !src.hem_mid) return false;
+    return src.sleeve_cuff_out_l[1] - src.shoulder_l[1] > (src.hem_mid[1] - src.shoulder_l[1]) * 0.60;
+  }
+
+  // La manga sigue al brazo hasta la muñeca y se dobla en el codo
+  function mangasHastaLaMuneca(dst, g, holgura) {
+    const radio = g.distSh * 0.11 * 1.25 * holgura / 1.05;
+    for (const [lado, sh, el, wr, uCuff] of [["l", g.shL, g.elL, g.wrL, g.uCuffL], ["r", g.shR, g.elR, g.wrR, g.uCuffR]]) {
+      const ante = res(wr, el);
+      let nAnte = unit([ante[1], -ante[0]]);
+      if (pto(nAnte, uCuff) < 0) nAnte = por(nAnte, -1);
+      const nCodo = unit(sum(uCuff, nAnte));
+      dst[`shoulder_${lado}`] = S(sh, por(g.uUp, g.distSh * 0.11), por(uCuff, -g.distSh * 0.03));
+      dst[`sleeve_top_${lado}`] = S(sh, por(res(el, sh), 0.12), por(uCuff, -radio * 1.25));
+      dst[`bicep_out_${lado}`] = sum(el, por(nCodo, -radio));
+      dst[`bicep_in_${lado}`] = sum(el, por(nCodo, radio));
+      dst[`sleeve_cuff_out_${lado}`] = sum(wr, por(nAnte, -radio * 0.8));
+      dst[`sleeve_cuff_in_${lado}`] = sum(wr, por(nAnte, radio * 0.8));
+    }
+  }
+
   // Top halter: arriba, la tela es mucho más angosta que el pecho (una tira que rodea el cuello)
   function esCuelloHalter(src) {
     if (!src.collar_top_l || !src.collar_top_r || !src.armpit_l || !src.armpit_r) return false;
@@ -386,6 +409,7 @@ const Malla = (() => {
       }
     } else {
       escoteComoLaPrenda(dst, prenda.puntos, cuello, uSh, uTorso, anchoCuello, alturaCuello, g.distTorso);
+      if (esMangaLarga(prenda.puntos)) mangasHastaLaMuneca(dst, g, holgura);
     }
     // El ruedo se ve curvo, como un aro alrededor del cuerpo: los costados suben un poco
     for (const k of ["hem_l", "hem_r"]) dst[k] = sum(dst[k], por(uTorso, -g.distSh * 0.035));
@@ -396,7 +420,9 @@ const Malla = (() => {
   function dibujarMalla(ctx, imagen, src, dst, tieneMangas) {
     // Primero las mangas y encima el torso: de frente, la parte de la manga que cae
     // junto al cuerpo queda detrás de la tela del pecho (no tapa el estampado)
-    const triangulos = tieneMangas ? TRIANGULOS_MANGAS.concat(TRIANGULOS_TORSO) : TRIANGULOS_TORSO;
+    // Con manga larga es al revés: los brazos van por delante del cuerpo
+    const triangulos = !tieneMangas ? TRIANGULOS_TORSO
+      : esMangaLarga(src) ? TRIANGULOS_TORSO.concat(TRIANGULOS_MANGAS) : TRIANGULOS_MANGAS.concat(TRIANGULOS_TORSO);
     for (const [a, b, c] of triangulos) {
       const s0 = src[a], s1 = src[b], s2 = src[c];
       const d0 = dst[a], d1 = dst[b], d2 = dst[c];
@@ -423,5 +449,5 @@ const Malla = (() => {
     }
   }
 
-  return { geometriaCorporal, medirSilueta, tramosDeBrazos, latDelTorso, puntosDestino, dibujarMalla };
+  return { geometriaCorporal, medirSilueta, tramosDeBrazos, latDelTorso, esMangaLarga, puntosDestino, dibujarMalla };
 })();

@@ -12,8 +12,8 @@ import numpy as np
 from tkinter import messagebox
 
 from pose_tracker import PoseTracker
-from clothing_geometry import detectar_puntos_clave_prenda, es_cuello_halter
-from clothing_warper import deformar_malla_prenda
+from clothing_geometry import detectar_puntos_clave_prenda, es_cuello_halter, es_manga_larga
+from clothing_warper import deformar_malla_prenda, sumar_mangas
 from body_layering import componer_prenda_con_capas
 from catalogo import holgura_de_talle, talle_inicial, obtener_medidas_talle
 from ajuste_silueta import ajustar_prenda_completa
@@ -500,13 +500,15 @@ def ejecutar_probador_camara(prenda_inicial, catalogo, talle_elegido="M", color_
                                           float(info_anatomica["dist_torso"]))
 
                 # Deformación anatómica por malla elástica (sub-malla por regiones)
+                # (manga larga: primero el torso solo; las mangas se suman al final, por encima)
+                manga_larga = tiene_mangas and es_manga_larga(puntos_prenda)
                 parche, xmin, ymin, xmax, ymax = deformar_malla_prenda(
                     imagen_prenda,
                     puntos_prenda,
                     dst_pts,
                     ancho,
                     alto,
-                    tiene_mangas=tiene_mangas
+                    tiene_mangas=tiene_mangas and not manga_larga
                 )
 
                 # Ajuste tipo ESCÁNER: la tela copia el borde de la silueta fila por fila
@@ -518,15 +520,18 @@ def ejecutar_probador_camara(prenda_inicial, catalogo, talle_elegido="M", color_
                         calce=prenda_actual.get("calce", "regular"),
                         memoria=memoria_ajuste,
                         frame_bgr=frame,
-                        tiene_mangas=tiene_mangas
+                        tiene_mangas=tiene_mangas and not manga_larga
                     )
                 if parche is not None and bloques:
-                    parche = pegar_bloques(parche, xmin, ymin, bloques, puntos_prenda, dst_pts, tiene_mangas)
+                    parche = pegar_bloques(parche, xmin, ymin, bloques, puntos_prenda, dst_pts,
+                                           tiene_mangas and not manga_larga)
                 # Profundidad 3D: la tela envuelve el torso (y se ve el giro del cuerpo),
                 # iluminada desde donde viene la luz en la cámara
                 if parche is not None:
                     info_anatomica["luz"] = estimador_luz.estimar(frame, info_anatomica)
                     parche = envolver_en_torso(parche, xmin, ymin, info_anatomica)
+                    if manga_larga:
+                        parche = sumar_mangas(parche, imagen_prenda, puntos_prenda, dst_pts, ancho, alto, xmin, ymin)
 
                 # Integración visual multicapa (cuello, torso, y brazos al frente)
                 if parche is not None and opacidad_prenda < 0.98:
@@ -541,7 +546,8 @@ def ejecutar_probador_camara(prenda_inicial, catalogo, talle_elegido="M", color_
                         talle=talle, recortar_silueta=recorte_silueta, sombras=True,
                         cuello_por_delante=tiene_mangas and not de_espaldas,
                         tira_al_cuello=es_cuello_halter(puntos_prenda) and not de_espaldas,
-                        sin_mangas=not tiene_mangas
+                        sin_mangas=not tiene_mangas,
+                        manga_larga=manga_larga
                     )
                 # Vista de costado: aparece a medida que se va la de frente. La tela sale
                 # de la espalda de la prenda (de costado no se ven logos ni botones).

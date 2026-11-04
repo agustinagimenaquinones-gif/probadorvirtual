@@ -333,7 +333,7 @@ function dibujarPrenda() {
   if (estado.silueta) {
     ctxPrenda.globalCompositeOperation = "destination-in";
     ctxPrenda.drawImage(capaSilueta, 0, 0);
-    borrarBrazos(g, p.tiene_mangas);
+    if (!Malla.esMangaLarga(p.puntos)) borrarBrazos(g, p.tiene_mangas);  // la manga larga cubre el brazo
   }
   darVolumen(g, img, p.tiene_mangas);
   // La prenda nunca tapa la cara

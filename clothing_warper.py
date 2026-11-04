@@ -5,7 +5,7 @@
 
 import numpy as np
 import cv2
-from clothing_geometry import obtener_triangulos_prenda, TRIANGULOS_ESTRUCTURADOS
+from clothing_geometry import obtener_triangulos_prenda, TRIANGULOS_ESTRUCTURADOS, TRIANGULOS_MANGAS
 
 def _deformar_triangulo_vectorizado(img_src, patch_dst, t_src, t_dst):
     """
@@ -151,9 +151,9 @@ def _area_triangulo(t):
     return abs(float((b[0] - a[0]) * (c[1] - a[1]) - (c[0] - a[0]) * (b[1] - a[1]))) * 0.5
 
 
-def _deformar_en_una_pasada(img_src, src_pts, dst_pts, xmin, ymin, patch_w, patch_h, tiene_mangas):
+def _deformar_en_una_pasada(img_src, src_pts, dst_pts, xmin, ymin, patch_w, patch_h, tiene_mangas, solo_mangas=False):
     """Deforma la prenda completa con un único cv2.remap. Devuelve el parche RGBA o None."""
-    triangulos = [t for t in obtener_triangulos_prenda(tiene_mangas)
+    triangulos = [t for t in (TRIANGULOS_MANGAS if solo_mangas else obtener_triangulos_prenda(tiene_mangas))
                   if all(p in src_pts and p in dst_pts for p in t)]
     if not triangulos or len(triangulos) > 250:
         return None
@@ -194,7 +194,47 @@ def _deformar_en_una_pasada(img_src, src_pts, dst_pts, xmin, ymin, patch_w, patc
                      borderMode=cv2.BORDER_CONSTANT, borderValue=(0, 0, 0, 0))
 
 
-def deformar_malla_prenda(img_prenda_rgba, src_pts_dict, dst_pts_dict, ancho_frame, alto_frame, tiene_mangas=True):
+def sumar_mangas(parche_torso, img_prenda_rgba, src_pts_dict, dst_pts_dict, ancho_frame, alto_frame, xmin=0, ymin=0):
+    """
+    Manga larga: las mangas se dibujan aparte y encima del torso (ya ajustado a la silueta),
+    porque los brazos van por delante y colgando pegados al cuerpo se superponen con la tela.
+    """
+    mangas, _, _, _, _ = deformar_malla_prenda(img_prenda_rgba, src_pts_dict, dst_pts_dict, ancho_frame, alto_frame,
+                                               solo_mangas=True)
+    if parche_torso is None or mangas is None or mangas.shape != parche_torso.shape:
+        return parche_torso
+    alfa = mangas[:, :, 3:].astype(np.float32) / 255.0
+    resultado = parche_torso.copy()
+    resultado[:, :, :3] = (mangas[:, :, :3] * alfa + parche_torso[:, :, :3] * (1.0 - alfa)).astype(np.uint8)
+    alfa_final = np.maximum(parche_torso[:, :, 3], mangas[:, :, 3])
+
+    # Unión de manga y torso: se cierran las rendijas, también el hueco de la axila (hasta
+    # un poco más abajo). El cuello no se toca: ahí el hueco es de verdad.
+    hombro_l, hombro_r = (np.asarray(dst_pts_dict[k], np.float32) for k in ("shoulder_l", "shoulder_r"))
+    ancho_hombros = float(np.linalg.norm(hombro_r - hombro_l))
+    y_axila = int(max(float(dst_pts_dict["armpit_l"][1]), float(dst_pts_dict["armpit_r"][1])) - ymin + ancho_hombros * 0.10)
+    x_medio = int((float(hombro_l[0]) + float(hombro_r[0])) * 0.5 - xmin)
+    lado_cuello = int(ancho_hombros * 0.30)
+    cierre = alfa_final.copy()
+    k_chico = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+    cierre = cv2.morphologyEx(cierre, cv2.MORPH_CLOSE, k_chico)
+    lado = max(3, int(ancho_hombros * 0.10) | 1)
+    grande = cv2.morphologyEx(alfa_final, cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (lado, lado)))
+    zona = np.zeros_like(alfa_final, dtype=bool)
+    zona[:max(0, y_axila), :] = True
+    zona[:, max(0, x_medio - lado_cuello):max(0, x_medio + lado_cuello)] = False
+    cierre[zona] = grande[zona]
+    nuevos = (cierre > alfa_final) | ((alfa_final < 200) & (cierre >= 200))
+    if nuevos.any():
+        # Lo que se cerró toma el color de la tela de al lado
+        color = cv2.dilate(resultado[:, :, :3], cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (lado, lado)))
+        resultado[:, :, :3][nuevos] = color[nuevos]
+    resultado[:, :, 3] = cierre
+    return resultado
+
+
+def deformar_malla_prenda(img_prenda_rgba, src_pts_dict, dst_pts_dict, ancho_frame, alto_frame, tiene_mangas=True,
+                          solo_mangas=False):
     """
     Deforma suavemente la prenda utilizando la triangulación anatómica.
     Retorna (parche_local_rgba, xmin, ymin, xmax, ymax) listo para componer.
@@ -230,7 +270,7 @@ def deformar_malla_prenda(img_prenda_rgba, src_pts_dict, dst_pts_dict, ancho_fra
     #    píxel se calcula de qué lugar de la prenda original viene (transformación afín
     #    inversa de su triángulo). Después cv2.remap copia todos los píxeles juntos.
     parche_rapido = _deformar_en_una_pasada(img_prenda_rgba, src_pts_dict, dst_pts_dict,
-                                            xmin, ymin, patch_w, patch_h, tiene_mangas)
+                                            xmin, ymin, patch_w, patch_h, tiene_mangas, solo_mangas)
     if parche_rapido is not None:
         parche_local = parche_rapido
         if np.any(parche_local[:, :, 3] > 0):

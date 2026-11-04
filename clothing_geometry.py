@@ -117,6 +117,121 @@ def es_cuello_halter(puntos):
     return ancho_pecho > 1.0 and ancho_cuello / ancho_pecho < 0.60
 
 
+def es_manga_larga(puntos):
+    """Manga larga: el puño cae bastante más abajo que la mitad entre el hombro y el ruedo."""
+    if not all(k in puntos for k in ("shoulder_l", "sleeve_cuff_out_l", "hem_mid")):
+        return False
+    y_hombro = float(puntos["shoulder_l"][1])
+    return float(puntos["sleeve_cuff_out_l"][1]) - y_hombro > (float(puntos["hem_mid"][1]) - y_hombro) * 0.60
+
+
+def _puntos_manga_larga(alpha, pts, xmin, xmax, ymin, ymax):
+    """
+    Buzo o campera de frente: las mangas cuelgan pegadas al cuerpo y no se ve la axila. El
+    costado del torso se toma del ruedo (cae casi recto) y la manga es lo que queda afuera.
+    Devuelve los puntos, o None si la foto no tiene esa forma (por ejemplo, manga corta).
+    """
+    mask = alpha > 25
+    gw, gh = float(xmax - xmin), float(ymax - ymin)
+    # Manga larga: en la mitad de abajo hay filas con tela separada a los dos costados (las
+    # mangas). En un top, cada fila es una sola pieza.
+    cx = int((xmin + xmax) / 2)
+    centro = np.where(mask[:, max(0, cx - 2):cx + 3].any(axis=1))[0]
+    y_ruedo = int(centro[-1])
+    limite_izq, limite_der = xmin + gw * 0.40, xmax - gw * 0.40
+    con_mangas = 0
+    bordes_torso = []
+    for y in range(int(ymin + gh * 0.50), int(ymax)):
+        tramos = _tramos(np.where(mask[y])[0])
+        if tramos and tramos[0][1] < limite_izq and tramos[-1][0] > limite_der:
+            con_mangas += 1
+            if y < y_ruedo:
+                bordes_torso += [t for t in tramos if t[0] <= cx <= t[1] and t[1] - t[0] < gw * 0.80]
+    if con_mangas < gh * 0.03:
+        return None
+
+    # Costado del torso: donde se separa de las mangas o, si se tocan, el ruedo
+    if len(bordes_torso) < gh * 0.03:
+        for y in range(int(y_ruedo - gh * 0.05), y_ruedo - 1):
+            bordes_torso += [t for t in _tramos(np.where(mask[y])[0]) if t[0] <= cx <= t[1]]
+    if not bordes_torso:
+        return None
+    x_izq, x_der = float(np.median([t[0] for t in bordes_torso])), float(np.median([t[1] for t in bordes_torso]))
+    if x_der - x_izq > gw * 0.80:
+        return None
+    ancho_torso = x_der - x_izq
+
+    def arriba(x):
+        ys = np.where(mask[:, int(np.clip(x, 0, mask.shape[1] - 1))])[0]
+        return float(ys[0]) if len(ys) else float(ymin)
+
+    y_hombro = max(arriba(x_izq), arriba(x_der))
+    y_axila = y_hombro + (y_ruedo - y_hombro) * 0.28
+    nuevos = dict(pts)
+
+    def nivel(fraccion):
+        return y_axila + (y_ruedo - y_axila) * fraccion
+
+    for lado, x_torso in (("l", x_izq), ("r", x_der)):
+        afuera = -1 if lado == "l" else 1
+        visible = mask[:, :int(x_torso)] if lado == "l" else mask[:, int(x_torso) + 1:]
+        desde = 0 if lado == "l" else int(x_torso) + 1
+        filas = np.where(visible.any(axis=1))[0]
+        y_puno = int(filas[-1])
+        # Puño: unas filas arriba de su final, donde tiene el ancho completo
+        y_medida = int(y_puno - gh * 0.02)
+        # (sólo la pieza de más afuera: el ruedo puede asomar pasando el costado del torso)
+        piezas = _tramos(np.where(visible[y_medida])[0] + desde)
+        if not piezas:
+            return None
+        pieza = piezas[0] if lado == "l" else piezas[-1]
+        puno_afuera, puno_adentro = (float(pieza[0]), float(pieza[1])) if lado == "l" else (float(pieza[1]), float(pieza[0]))
+        y_codo = int(y_hombro + (y_puno - y_hombro) * 0.50)
+        xs_codo = np.where(visible[y_codo])[0] + desde
+        codo_afuera = float(xs_codo[0] if lado == "l" else xs_codo[-1]) if len(xs_codo) else puno_afuera
+        x_manga = x_torso + afuera * gw * 0.10
+        nuevos[f"shoulder_{lado}"] = (x_torso, arriba(x_torso))
+        nuevos[f"sleeve_top_{lado}"] = (x_manga, arriba(x_manga))
+        nuevos[f"bicep_out_{lado}"] = (codo_afuera, float(y_codo))
+        nuevos[f"bicep_in_{lado}"] = ((x_torso + puno_adentro) * 0.5, float(y_codo))
+        nuevos[f"sleeve_cuff_out_{lado}"] = (puno_afuera, float(y_puno))
+        nuevos[f"sleeve_cuff_in_{lado}"] = (puno_adentro, float(y_puno))
+        nuevos[f"armpit_{lado}"] = (x_torso, y_axila)
+        nuevos[f"underbust_{lado}"] = (x_torso, nivel(0.25))
+        nuevos[f"waist_{lado}"] = (x_torso, nivel(0.50))
+        nuevos[f"high_hip_{lado}"] = (x_torso, nivel(0.78))
+        nuevos[f"hem_{lado}"] = (x_torso, float(y_ruedo))
+
+    # Cuello o capucha, medidos con el ancho del torso (no con el de toda la foto)
+    y_arriba = float(np.where(mask[:, max(0, cx - 2):cx + 3].any(axis=1))[0][0])
+    medio = ancho_torso * 0.20
+
+    def union_capucha(lado):
+        # Una capucha sube de golpe desde el hombro: el cuello empieza donde el contorno se empina
+        x, anterior = cx + lado * ancho_torso * 0.48, None
+        paso = max(2.0, ancho_torso * 0.01)
+        while abs(x - cx) > ancho_torso * 0.12:
+            y = arriba(x)
+            if anterior is not None and anterior - y > paso * 1.5:
+                return float(x + lado * paso), anterior
+            anterior = y
+            x -= lado * paso
+        return float(cx + lado * medio), arriba(cx + lado * medio)
+
+    nuevos["collar_top_mid"] = (float(cx), y_arriba)
+    nuevos["collar_top_l"] = union_capucha(-1)
+    nuevos["collar_top_r"] = union_capucha(1)
+    y_escote = max(float(pts["neck_v"][1]), y_hombro + (y_ruedo - y_hombro) * 0.05)
+    y_punta = (y_arriba + y_escote * 3.0) / 4.0
+    nuevos["collar_tip_l"] = (cx - medio * 0.8, y_punta)
+    nuevos["collar_tip_r"] = (cx + medio * 0.8, y_punta)
+    nuevos["neck_v"] = (float(cx), y_escote)
+    nuevos["chest_mid"] = (float(cx), y_axila)
+    nuevos["torso_mid"] = (float(cx), nivel(0.50))
+    nuevos["hem_mid"] = (float(cx), float(y_ruedo))
+    return nuevos
+
+
 def detectar_puntos_clave_prenda(img_rgba):
     """
     Analiza de forma automática cualquier prenda PNG con canal alfa y extrae
@@ -244,6 +359,9 @@ def detectar_puntos_clave_prenda(img_rgba):
             "hem_r": (cx + gw * 0.38, ymax),
         })
 
+    larga = _puntos_manga_larga(alpha, pts, xmin, xmax, ymin, ymax)
+    if larga is not None:
+        return larga, True
     if tiene_mangas:
         pts = _ajustar_puntos_al_contorno(alpha > 25, pts, xmin, xmax, ymin, ymax)
     else:

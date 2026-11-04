@@ -32,7 +32,7 @@ INTENSIDAD_SOMBRA_CONTACTO = 0.30
 
 
 def recortar_prenda_a_silueta(parche_rgba, xmin, ymin, mascara, info_anatomica, talle="M", frame_bgr=None,
-                              sin_mangas=False):
+                              sin_mangas=False, manga_larga=False):
     """
     Recorta el canal alfa de la prenda para que no "flote" fuera del cuerpo.
     - Torso: puede sobresalir del borde de la silueta sólo el margen del talle.
@@ -113,7 +113,16 @@ def recortar_prenda_a_silueta(parche_rgba, xmin, ymin, mascara, info_anatomica, 
             cv2.line(brazos_delante, tuple(np.int32(a_)), tuple(np.int32(b_)), 255, grosor_brazo)
     # El brazo entero, con o sin manga: la ropa de la persona no siempre tiene color de piel
     brazos_delante = cv2.bitwise_and(brazos_delante, cuerpo)
-    permitido[brazos_delante > 0] = 0
+    if manga_larga:
+        # La manga cubre el brazo entero: no se borra, y puede sobresalir un poco a lo largo
+        cerca_brazo = np.zeros_like(cuerpo)
+        for hombro, codo, muneca in (("p_sh_l", "p_elb_l", "p_wri_l"), ("p_sh_r", "p_elb_r", "p_wri_r")):
+            p_sh, p_elb, p_wri = (info_anatomica[k] - offset for k in (hombro, codo, muneca))
+            for a_, b_ in ((p_sh, p_elb), (p_elb, p_wri)):
+                cv2.line(cerca_brazo, tuple(np.int32(a_)), tuple(np.int32(b_)), 255, int(grosor_brazo * 1.8))
+        permitido = np.maximum(permitido, cv2.bitwise_and(cuerpo_margen_manga, cerca_brazo))
+    else:
+        permitido[brazos_delante > 0] = 0
 
     # El cuello de la prenda puede apoyarse un poco por encima de la base del cuello
     cuello = np.zeros_like(cuerpo)
@@ -364,7 +373,7 @@ def poner_pelo_delante(parche_alfa, xmin, ymin, info_anatomica):
 
 def componer_prenda_con_capas(frame_bgr, parche_rgba, xmin, ymin, xmax, ymax, info_anatomica,
                               talle="M", recortar_silueta=True, sombras=True, cuello_por_delante=False,
-                              tira_al_cuello=False, sin_mangas=False):
+                              tira_al_cuello=False, sin_mangas=False, manga_larga=False):
     """
     Integra la prenda sobre el cuerpo en el cuadro de la cámara respetando las capas anatómicas:
       1. Coloca la prenda sobre el torso, con la luz de la escena y una sombra suave en sus bordes.
@@ -386,7 +395,7 @@ def componer_prenda_con_capas(frame_bgr, parche_rgba, xmin, ymin, xmax, ymax, in
     mascara = (info_anatomica or {}).get("mascara")
     if recortar_silueta and mascara is not None:
         parche_rgba = recortar_prenda_a_silueta(parche_rgba, xmin, ymin, mascara, info_anatomica, talle, frame_bgr,
-                                                sin_mangas)
+                                                sin_mangas, manga_larga)
     if sombras:
         # Luz de la escena + sombras del cuerpo + volumen, combinados en UNA sola pasada
         # sobre la tela (antes eran tres: es lo que más tiempo se llevaba por cuadro)

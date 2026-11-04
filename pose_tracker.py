@@ -14,7 +14,7 @@ from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
 
 from body_measure import medir_silueta, estimar_figura, MedidasSuavizadas, ancho_total, OneEuroFilter
-from clothing_geometry import es_cuello_halter
+from clothing_geometry import es_cuello_halter, es_manga_larga
 
 class PoseTracker:
     """
@@ -1136,6 +1136,9 @@ class PoseTracker:
             self._escote_como_la_prenda(dst_pts, puntos_prenda, centro_cuello, u_sh, u_up, u_torso,
                                         ancho_cuello, altura_cuello, d_torso_real)
 
+        if puntos_prenda is not None and tiene_mangas and es_manga_larga(puntos_prenda):
+            self._mangas_hasta_la_muneca(dst_pts, info, holgura, d_sh_real, u_up)
+
         # Si no tiene mangas (ej. top halter o musculosa), plegar las mangas hacia los hombros
         if not tiene_mangas:
             dst_pts["sleeve_top_l"] = dst_pts["shoulder_l"]
@@ -1150,6 +1153,29 @@ class PoseTracker:
             dst_pts["bicep_in_r"] = dst_pts["armpit_r"]
 
         return dst_pts
+
+    @staticmethod
+    def _mangas_hasta_la_muneca(dst_pts, info, holgura, d_sh, u_up):
+        """Manga larga: sigue al brazo hasta la muñeca y se dobla en el codo."""
+        medidas = info.get("medidas") or {}
+        radio = (medidas.get("brazo") or d_sh * 0.22) * 0.5 * 1.25 * holgura / 1.05
+        for lado in ("l", "r"):
+            p_sh, p_elb, p_wri = (np.asarray(info[f"{k}_{lado}"], np.float32) for k in ("p_sh", "p_elb", "p_wri"))
+            u_cuff = np.asarray(info[f"u_cuff_{lado}"], np.float32)   # del brazo hacia el cuerpo
+            antebrazo = p_wri - p_elb
+            n_ante = np.array([antebrazo[1], -antebrazo[0]], np.float32)
+            n_ante = n_ante / max(1e-6, float(np.linalg.norm(n_ante)))
+            if float(n_ante @ u_cuff) < 0:
+                n_ante = -n_ante
+            n_codo = u_cuff + n_ante
+            n_codo = n_codo / max(1e-6, float(np.linalg.norm(n_codo)))
+            # Hombro redondeado: cubre la punta del hombro, sin la esquina de la costura de una remera
+            dst_pts[f"shoulder_{lado}"] = (p_sh + u_up * (d_sh * 0.11) - u_cuff * (d_sh * 0.03)).astype(np.float32)
+            dst_pts[f"sleeve_top_{lado}"] = (p_sh + (p_elb - p_sh) * 0.12 - u_cuff * radio * 1.25).astype(np.float32)
+            dst_pts[f"bicep_out_{lado}"] = (p_elb - n_codo * radio).astype(np.float32)
+            dst_pts[f"bicep_in_{lado}"] = (p_elb + n_codo * radio).astype(np.float32)
+            dst_pts[f"sleeve_cuff_out_{lado}"] = (p_wri - n_ante * radio * 0.80).astype(np.float32)
+            dst_pts[f"sleeve_cuff_in_{lado}"] = (p_wri + n_ante * radio * 0.80).astype(np.float32)
 
     @staticmethod
     def _medios_anchos_desde_silueta(medidas, holgura, calce, d_sh):
