@@ -20,6 +20,7 @@ const Realismo = (() => {
   const INTENSIDAD_PLIEGUES = 0.55;
   const RIGIDEZ_RESORTE = 170, FRENO_RESORTE = 20;
   const CUADROS_DE_SALTO = 6;        // un cambio que dura más que esto es real, no un error
+  const MS_LENTO = 45;               // más que esto entre cuadros: se pasa al modo liviano
   const INTENSIDAD_GRANO = 0.05;
   const SATURACION = 1.28;           // la luz y la suavidad apagan el color: se le devuelve
   // En una tela clara, el mismo oscurecimiento del contorno se nota mucho más
@@ -28,12 +29,12 @@ const Realismo = (() => {
   const CUADROS_POR_MEDICION = 15;   // el brillo del lugar cambia lento: no hace falta medirlo siempre
 
   const nuevo = (w = 1, h = 1) => { const c = document.createElement("canvas"); c.width = w; c.height = h; return c; };
-  const copia = nuevo(), entera = nuevo(), chica = nuevo(), luz = nuevo(), borde = nuevo(), pliegues = nuevo();
+  const copia = nuevo(), entera = nuevo(), chica = nuevo(), luz = nuevo(), borde = nuevo(), pliegues = nuevo(), plieguesSuaves = nuevo();
   const medidor = nuevo(8, 8);
   const ctxMedidor = medidor.getContext("2d", { willReadFrequently: true });
   const hayFiltros = typeof ctxMedidor.filter === "string";
   const estado = { W: 0, H: 0, cuadro: 0, media: 128, tinte: "rgb(255,255,255)", exposicion: 1, grano: null,
-    pose: null, rechazos: 0, resortes: new Map(), tiempo: 0 };
+    pose: null, rechazos: 0, resortes: new Map(), tiempo: 0, ultimoCuadro: 0, msCuadro: 16, liviano: false };
 
   function preparar(W, H) {
     if (estado.W === W && estado.H === H) return;
@@ -41,7 +42,7 @@ const Realismo = (() => {
     for (const c of [copia, entera]) { c.width = W; c.height = H; }
     chica.width = Math.ceil(W / 4); chica.height = Math.ceil(H / 4);
     luz.width = Math.ceil(W / 16); luz.height = Math.ceil(H / 16);
-    for (const c of [borde, pliegues]) { c.width = Math.ceil(W / 2); c.height = Math.ceil(H / 2); }
+    for (const c of [borde, pliegues, plieguesSuaves]) { c.width = Math.ceil(W / 2); c.height = Math.ceil(H / 2); }
   }
 
   function crearGrano(ctx) {
@@ -66,7 +67,8 @@ const Realismo = (() => {
     if (hayFiltros) {
       // Sólo la luz general: tan desenfocada que no pasa ningún dibujo de la ropa de abajo
       const xl = luz.getContext("2d");
-      xl.filter = `grayscale(1) blur(${Math.max(3, escala * 0.16)}px)`;
+      // (el brillo se ajusta acá, en chico: en la pantalla completa ese filtro es muy caro)
+      xl.filter = `grayscale(1) blur(${Math.max(3, escala * 0.16)}px) brightness(${Math.min(1.8, Math.max(0.6, 128 / estado.media)).toFixed(2)})`;
       xl.drawImage(chica, 0, 0, luz.width, luz.height);
       xl.filter = "none";
     }
@@ -221,6 +223,11 @@ const Realismo = (() => {
     const W = capa.width, H = capa.height;
     preparar(W, H);
     if (!estado.grano) estado.grano = crearGrano(ctx);
+    // Fluidez primero: si la compu no llega, se dejan de lado los detalles más caros
+    const ahora = performance.now();
+    if (estado.ultimoCuadro) estado.msCuadro += (Math.min(250, ahora - estado.ultimoCuadro) - estado.msCuadro) * 0.08;
+    estado.ultimoCuadro = ahora;
+    estado.liviano = estado.msCuadro > MS_LENTO;
     // Tela opaca: donde la silueta de la cámara es dudosa, la prenda queda semitransparente.
     // Dibujarla sobre sí misma la vuelve sólida y deja suave sólo el borde.
     // (los pliegues de la cámara se sacaron: hacían pasar los dibujos de la ropa de abajo)
@@ -242,16 +249,19 @@ const Realismo = (() => {
     if (hayFiltros) {
       ctx.globalCompositeOperation = "soft-light";
       ctx.globalAlpha = INTENSIDAD_LUZ;
-      ctx.filter = `brightness(${Math.min(1.8, Math.max(0.6, 128 / estado.media))})`;
       ctx.drawImage(luz, 0, 0, W, H);
-      ctx.filter = "none";
       if (dst && dst.armpit_l && dst.waist_l && dst.hem_l && dst.chest_mid && dst.torso_mid) {
-        dibujarPliegues(dst, g, mangaLarga);
+        // Se trazan y se desenfocan en chico; un cuadro de atraso no se nota
+        if (estado.cuadro % (estado.liviano ? 4 : 2) === 0) {
+          dibujarPliegues(dst, g, mangaLarga);
+          const xs = plieguesSuaves.getContext("2d");
+          xs.filter = `blur(${Math.max(0.6, g.distSh * 0.006).toFixed(1)}px)`;
+          xs.drawImage(pliegues, 0, 0);
+          xs.filter = "none";
+        }
         ctx.globalCompositeOperation = "hard-light";
         ctx.globalAlpha = INTENSIDAD_PLIEGUES;
-        ctx.filter = `blur(${Math.max(0.8, g.distSh * 0.012).toFixed(1)}px)`;
-        ctx.drawImage(pliegues, 0, 0, W, H);
-        ctx.filter = "none";
+        ctx.drawImage(plieguesSuaves, 0, 0, W, H);
       }
     }
     ctx.globalAlpha = 1;
@@ -266,7 +276,7 @@ const Realismo = (() => {
     ctx.globalCompositeOperation = "destination-in";
     ctx.drawImage(copia, 0, 0);
 
-    if (hayFiltros) {
+    if (hayFiltros && !estado.liviano) {
       // Contorno: negro donde el desenfoque de la tela pierde fuerza, sólo sobre la tela
       const xb = borde.getContext("2d");
       xb.globalCompositeOperation = "copy";
@@ -285,7 +295,8 @@ const Realismo = (() => {
 
   /** Filtro para dibujar la prenda: color intenso y la suavidad de la cámara ("none" si no hay filtros). */
   function suavidad(W) {
-    return hayFiltros ? `saturate(${SATURACION}) blur(${(0.45 * W / 1280).toFixed(2)}px)` : "none";
+    if (!hayFiltros) return "none";
+    return estado.liviano ? `saturate(${SATURACION})` : `saturate(${SATURACION}) blur(${(0.45 * W / 1280).toFixed(2)}px)`;
   }
 
   return { poseEstable, inercia, guardarEntera, cubrirTorso, integrar, suavidad };
