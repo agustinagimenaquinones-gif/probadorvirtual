@@ -6,6 +6,8 @@
 import numpy as np
 import cv2
 
+from pliegues import aplicar_pliegues
+
 from segmentador_pelo import recortar_a
 
 # Margen (en píxeles, para un ancho de hombros de 220 px) que la prenda puede
@@ -13,7 +15,7 @@ from segmentador_pelo import recortar_a
 MARGEN_SILUETA_TALLE = {"XS": 1, "S": 2, "M": 4, "L": 7, "XL": 10, "XXL": 13}
 
 # Intensidad máxima de las sombras del cuerpo sobre la prenda (0 = nada, 1 = todo)
-INTENSIDAD_SOMBRAS = 0.35
+INTENSIDAD_SOMBRAS = 0.22
 
 # Luz de la prenda: las fotos de producto son de estudio y, pegadas tal cual sobre la
 # cámara, los colores oscuros (azul marino, negro) se ven apagados. Una curva gamma
@@ -48,6 +50,16 @@ def recortar_prenda_a_silueta(parche_rgba, xmin, ymin, mascara, info_anatomica, 
     if m.shape[:2] != (alto_p, ancho_p):
         return parche_rgba
     cuerpo = (m > 0.5).astype(np.uint8) * 255
+    # La silueta puede tener huecos sobre la ropa (poca luz, ropa parecida al fondo): por ahí
+    # se vería la ropa original a través de la prenda
+    # (sólo huecos cerrados y chicos: el espacio entre el brazo y el torso tiene que quedar libre)
+    d_sh_hueco = float(info_anatomica["dist_sh"]) * 0.35
+    n_huecos, etiquetas, datos, _ = cv2.connectedComponentsWithStats(cv2.bitwise_not(cuerpo), connectivity=4)
+    for i in range(1, n_huecos):
+        x_h, y_h, w_h, h_h, area_h = datos[i]
+        toca_borde = x_h == 0 or y_h == 0 or x_h + w_h >= ancho_p or y_h + h_h >= alto_p
+        if not toca_borde and area_h < d_sh_hueco * d_sh_hueco:
+            cuerpo[etiquetas == i] = 255
 
     alfa = parche_rgba[:, :, 3]
     tela = alfa > 20
@@ -154,11 +166,12 @@ def aplicar_sombras_del_cuerpo(frame_bgr, parche_rgba, xmin, ymin, intensidad=IN
     if np.count_nonzero(tela) < 50:
         return None if solo_factor else parche_rgba
 
-    # Desenfoque amplio: pasan los pliegues y el volumen, no los estampados de la ropa
-    # de la persona. Se calcula en una imagen 4 veces más chica (es mucho más rápido).
+    # Desenfoque muy amplio: pasa sólo la luz general. Con menos, los dibujos y las arrugas
+    # de la ropa de la persona se ven a través de la prenda, como si fuera transparente.
+    # Se calcula en una imagen 4 veces más chica (es mucho más rápido).
     gris = cv2.cvtColor(zona, cv2.COLOR_BGR2GRAY)
     chica = cv2.resize(gris, (max(4, ancho_p // 4), max(4, alto_p // 4)), interpolation=cv2.INTER_AREA)
-    k = max(3, (min(chica.shape) // 12) | 1)
+    k = max(3, (min(chica.shape) // 2) | 1)
     chica = cv2.GaussianBlur(chica.astype(np.float32), (k, k), 0)
     luz = cv2.resize(chica, (ancho_p, alto_p), interpolation=cv2.INTER_LINEAR)
     media = float(cv2.mean(luz, mask=tela.astype(np.uint8))[0]) + 1e-3
@@ -373,7 +386,7 @@ def poner_pelo_delante(parche_alfa, xmin, ymin, info_anatomica):
 
 def componer_prenda_con_capas(frame_bgr, parche_rgba, xmin, ymin, xmax, ymax, info_anatomica,
                               talle="M", recortar_silueta=True, sombras=True, cuello_por_delante=False,
-                              tira_al_cuello=False, sin_mangas=False, manga_larga=False):
+                              tira_al_cuello=False, sin_mangas=False, manga_larga=False, puntos_destino=None):
     """
     Integra la prenda sobre el cuerpo en el cuadro de la cámara respetando las capas anatómicas:
       1. Coloca la prenda sobre el torso, con la luz de la escena y una sombra suave en sus bordes.
@@ -409,12 +422,15 @@ def componer_prenda_con_capas(frame_bgr, parche_rgba, xmin, ymin, xmax, ymax, in
         parche_rgba = parche_rgba.copy()
         parche_rgba[:, :, :3] = cv2.multiply(np.ascontiguousarray(parche_rgba[:, :, :3]),
                                              cv2.merge([factor * float(g) for g in ganancias]), dtype=cv2.CV_8U)
-        parche_rgba = relieve_en_tela_oscura(parche_rgba, sombras_cuerpo)
+        parche_rgba = relieve_en_tela_oscura(parche_rgba, None)
+        if puntos_destino is not None and info_anatomica:
+            parche_rgba = aplicar_pliegues(parche_rgba, xmin, ymin, puntos_destino, float(info_anatomica["dist_sh"]), manga_larga)
 
     # 1. Recorte de la región de interés (ROI)
     roi_fondo = resultado[ymin:ymax, xmin:xmax]
     parche_bgr = parche_rgba[:, :, :3]
-    parche_alfa = parche_rgba[:, :, 3].astype(np.float32) / 255.0
+    # Tela opaca: sólo el borde queda suave (el resto de la prenda tapa del todo lo de atrás)
+    parche_alfa = np.minimum(parche_rgba[:, :, 3].astype(np.float32) / (255.0 * 0.80), 1.0)
 
     # 2. Máscara de protección del mentón y cara
     # El cuello de la prenda nunca debe tapar la mandíbula ni el rostro de la persona
@@ -470,7 +486,8 @@ def componer_prenda_con_capas(frame_bgr, parche_rgba, xmin, ymin, xmax, ymax, in
 
     # 4. CAPA SUPERIOR: Brazos y Manos al frente (Oclusión realista)
     # Si la persona cruza los brazos o los sostiene frente al pecho:
-    if info_anatomica and info_anatomica.get("brazos_al_frente", False):
+    # (con manga larga, no: el brazo va adentro de la manga y dejarlo arriba la perforaría)
+    if info_anatomica and info_anatomica.get("brazos_al_frente", False) and not manga_larga:
         p_elb_l = info_anatomica["p_elb_l"]
         p_elb_r = info_anatomica["p_elb_r"]
         p_wri_l = info_anatomica["p_wri_l"]

@@ -547,7 +547,8 @@ def ejecutar_probador_camara(prenda_inicial, catalogo, talle_elegido="M", color_
                         cuello_por_delante=tiene_mangas and not de_espaldas,
                         tira_al_cuello=es_cuello_halter(puntos_prenda) and not de_espaldas,
                         sin_mangas=not tiene_mangas,
-                        manga_larga=manga_larga
+                        manga_larga=manga_larga,
+                        puntos_destino=dst_pts
                     )
                 # Vista de costado: aparece a medida que se va la de frente. La tela sale
                 # de la espalda de la prenda (de costado no se ven logos ni botones).

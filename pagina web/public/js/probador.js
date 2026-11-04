@@ -321,9 +321,10 @@ function dibujarPrenda() {
   const img = imagenDe(p, estado.color);
   if (!img.complete || !img.naturalWidth || !estado.puntos) return;
   const W = lienzo.width, H = lienzo.height;
-  const g = Malla.geometriaCorporal(estado.puntos.pts, estado.puntos.vis, W, H);
+  const g = Realismo.poseEstable(Malla.geometriaCorporal(estado.puntos.pts, estado.puntos.vis, W, H));
   g.medidas = actualizarMedidas(g);
   const dst = Malla.puntosDestino(g, p, estado.talle, estado.ajuste);
+  Realismo.inercia(dst, g, p.tiene_mangas);
   if (fotoDemo) document.body.dataset.malla = JSON.stringify({ dst, g });  // para revisar la malla en el modo foto
   ctxPrenda.setTransform(1, 0, 0, 1, 0, 0);
   ctxPrenda.globalCompositeOperation = "source-over";
@@ -338,7 +339,7 @@ function dibujarPrenda() {
     Realismo.cubrirTorso(ctxPrenda, dst);
   }
   darVolumen(g, img, p.tiene_mangas);
-  Realismo.integrar(ctxPrenda, capaPrenda, fuente, g, claridadDe(img));
+  Realismo.integrar(ctxPrenda, capaPrenda, fuente, g, claridadDe(img), dst, Malla.esMangaLarga(p.puntos));
   // La prenda nunca tapa la cara
   if (g.medioCara && g.menton && g.nariz) {
     ctxPrenda.globalCompositeOperation = "destination-out";

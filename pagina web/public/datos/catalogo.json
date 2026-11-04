@@ -23,12 +23,21 @@
     }
    ],
    "talles": [
+    "XS",
     "S",
     "M",
     "L",
-    "XL"
+    "XL",
+    "XXL"
    ],
    "medidas_talles": {
+    "XS": {
+     "pecho": 92,
+     "cintura": 88,
+     "cadera": 92,
+     "hombros": 42,
+     "largo": 64
+    },
     "S": {
      "pecho": 98,
      "cintura": 94,
@@ -56,6 +65,13 @@
      "cadera": 116,
      "hombros": 50,
      "largo": 72
+    },
+    "XXL": {
+     "pecho": 122,
+     "cintura": 118,
+     "cadera": 122,
+     "hombros": 52,
+     "largo": 74
     }
    },
    "stock": {
@@ -66,7 +82,11 @@
     "Bordó|M": 5,
     "Bordó|S": 5,
     "Negro|XL": 5,
-    "Bordó|XL": 5
+    "Negro|XS": 5,
+    "Bordó|XL": 5,
+    "Bordó|XS": 5,
+    "Negro|XXL": 5,
+    "Bordó|XXL": 5
    },
    "imagenes": {
     "Bordó": "prendas/buzo_capucha_bordo__bordo.webp",
@@ -225,12 +245,21 @@
     }
    ],
    "talles": [
+    "XS",
     "S",
     "M",
     "L",
-    "XL"
+    "XL",
+    "XXL"
    ],
    "medidas_talles": {
+    "XS": {
+     "pecho": 106,
+     "cintura": 106,
+     "cadera": 106,
+     "hombros": 50,
+     "largo": 68
+    },
     "S": {
      "pecho": 112,
      "cintura": 112,
@@ -258,6 +287,13 @@
      "cadera": 130,
      "hombros": 58,
      "largo": 76
+    },
+    "XXL": {
+     "pecho": 136,
+     "cintura": 136,
+     "cadera": 136,
+     "hombros": 60,
+     "largo": 78
     }
    },
    "stock": {
@@ -265,10 +301,14 @@
     "Crema|M": 5,
     "Crema|S": 5,
     "Crema|XL": 5,
+    "Crema|XS": 5,
+    "Crema|XXL": 5,
     "Marrón|L": 5,
     "Marrón|M": 5,
     "Marrón|S": 5,
-    "Marrón|XL": 5
+    "Marrón|XL": 5,
+    "Marrón|XS": 5,
+    "Marrón|XXL": 5
    },
    "imagenes": {
     "Marrón": "prendas/buzo_cuello_redondo_marron__marron.webp",
@@ -425,7 +465,9 @@
     "XS",
     "S",
     "M",
-    "L"
+    "L",
+    "XL",
+    "XXL"
    ],
    "medidas_talles": {
     "XS": {
@@ -455,13 +497,29 @@
      "cadera": 98,
      "hombros": 39,
      "largo": 54
+    },
+    "XL": {
+     "pecho": 100,
+     "cintura": 86,
+     "cadera": 104,
+     "hombros": 41,
+     "largo": 56
+    },
+    "XXL": {
+     "pecho": 106,
+     "cintura": 92,
+     "cadera": 110,
+     "hombros": 43,
+     "largo": 58
     }
    },
    "stock": {
     "Negro|L": 5,
     "Negro|M": 5,
     "Negro|S": 5,
-    "Negro|XS": 5
+    "Negro|XL": 5,
+    "Negro|XS": 5,
+    "Negro|XXL": 5
    },
    "imagenes": {
     "Negro": "prendas/buzo_capucha_corto_negro__negro.webp"
@@ -614,12 +672,21 @@
     }
    ],
    "talles": [
+    "XS",
     "S",
     "M",
     "L",
-    "XL"
+    "XL",
+    "XXL"
    ],
    "medidas_talles": {
+    "XS": {
+     "pecho": 88,
+     "cintura": 80,
+     "cadera": 88,
+     "hombros": 41,
+     "largo": 66
+    },
     "S": {
      "pecho": 94,
      "cintura": 86,
@@ -647,13 +714,22 @@
      "cadera": 112,
      "hombros": 49,
      "largo": 78
+    },
+    "XXL": {
+     "pecho": 118,
+     "cintura": 110,
+     "cadera": 118,
+     "hombros": 51,
+     "largo": 81
     }
    },
    "stock": {
     "Azul Marino|L": 5,
     "Azul Marino|M": 5,
     "Azul Marino|S": 5,
-    "Azul Marino|XL": 5
+    "Azul Marino|XL": 5,
+    "Azul Marino|XS": 5,
+    "Azul Marino|XXL": 5
    },
    "imagenes": {
     "Azul Marino": "prendas/polo_ralph_lauren__azul-marino.webp"
@@ -819,7 +895,9 @@
     "XS",
     "S",
     "M",
-    "L"
+    "L",
+    "XL",
+    "XXL"
    ],
    "medidas_talles": {
     "XS": {
@@ -849,21 +927,41 @@
      "cadera": 98,
      "hombros": 40,
      "largo": 62
+    },
+    "XL": {
+     "pecho": 100,
+     "cintura": 86,
+     "cadera": 104,
+     "hombros": 42,
+     "largo": 64
+    },
+    "XXL": {
+     "pecho": 106,
+     "cintura": 92,
+     "cadera": 110,
+     "hombros": 44,
+     "largo": 66
     }
    },
    "stock": {
     "Blanco|L": 5,
     "Blanco|M": 5,
     "Blanco|S": 5,
+    "Blanco|XL": 5,
     "Blanco|XS": 5,
     "Celeste|L": 5,
     "Celeste|M": 5,
     "Celeste|S": 5,
+    "Blanco|XXL": 5,
+    "Celeste|XL": 5,
     "Celeste|XS": 5,
+    "Celeste|XXL": 5,
     "Rosa Empolvado|L": 5,
     "Rosa Empolvado|M": 5,
     "Rosa Empolvado|S": 5,
-    "Rosa Empolvado|XS": 5
+    "Rosa Empolvado|XL": 5,
+    "Rosa Empolvado|XS": 5,
+    "Rosa Empolvado|XXL": 5
    },
    "imagenes": {
     "Blanco": "prendas/remera_entallada_blanca__blanco.webp",
@@ -1026,7 +1124,9 @@
     "XS",
     "S",
     "M",
-    "L"
+    "L",
+    "XL",
+    "XXL"
    ],
    "medidas_talles": {
     "XS": {
@@ -1056,6 +1156,20 @@
      "cadera": 96,
      "hombros": 36,
      "largo": 50
+    },
+    "XL": {
+     "pecho": 98,
+     "cintura": 82,
+     "cadera": 102,
+     "hombros": 38,
+     "largo": 52
+    },
+    "XXL": {
+     "pecho": 104,
+     "cintura": 88,
+     "cadera": 108,
+     "hombros": 40,
+     "largo": 54
     }
    },
    "stock": {
@@ -1065,8 +1179,12 @@
     "Bordó|L": 5,
     "Bordó|M": 5,
     "Bordó|S": 5,
+    "Negro|XL": 5,
     "Negro|XS": 5,
-    "Bordó|XS": 5
+    "Bordó|XL": 5,
+    "Bordó|XS": 5,
+    "Negro|XXL": 5,
+    "Bordó|XXL": 5
    },
    "imagenes": {
     "Negro": "prendas/musculosa_acanalada_negra__negro.webp",
@@ -1228,7 +1346,9 @@
     "XS",
     "S",
     "M",
-    "L"
+    "L",
+    "XL",
+    "XXL"
    ],
    "medidas_talles": {
     "XS": {
@@ -1258,6 +1378,20 @@
      "cadera": 96,
      "hombros": 36,
      "largo": 50
+    },
+    "XL": {
+     "pecho": 98,
+     "cintura": 82,
+     "cadera": 102,
+     "hombros": 38,
+     "largo": 52
+    },
+    "XXL": {
+     "pecho": 104,
+     "cintura": 88,
+     "cadera": 108,
+     "hombros": 40,
+     "largo": 54
     }
    },
    "stock": {
@@ -1267,8 +1401,12 @@
     "Bordó|L": 5,
     "Bordó|M": 5,
     "Bordó|S": 5,
+    "Negro|XL": 5,
     "Negro|XS": 5,
-    "Bordó|XS": 5
+    "Bordó|XL": 5,
+    "Bordó|XS": 5,
+    "Negro|XXL": 5,
+    "Bordó|XXL": 5
    },
    "imagenes": {
     "Negro": "prendas/top_halter_cuello_alto_negro__negro.webp",
@@ -1425,7 +1563,9 @@
     "XS",
     "S",
     "M",
-    "L"
+    "L",
+    "XL",
+    "XXL"
    ],
    "medidas_talles": {
     "XS": {
@@ -1455,13 +1595,29 @@
      "cadera": 96,
      "hombros": 36,
      "largo": 50
+    },
+    "XL": {
+     "pecho": 98,
+     "cintura": 82,
+     "cadera": 102,
+     "hombros": 38,
+     "largo": 52
+    },
+    "XXL": {
+     "pecho": 104,
+     "cintura": 88,
+     "cadera": 108,
+     "hombros": 40,
+     "largo": 54
     }
    },
    "stock": {
     "Negro|L": 5,
     "Negro|M": 5,
     "Negro|S": 5,
-    "Negro|XS": 5
+    "Negro|XL": 5,
+    "Negro|XS": 5,
+    "Negro|XXL": 5
    },
    "imagenes": {
     "Negro": "prendas/top_halter_drapeado_panuelo__negro.webp"

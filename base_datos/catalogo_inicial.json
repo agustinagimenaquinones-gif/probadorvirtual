@@ -3,6 +3,13 @@
   "stock_por_variante": 5,
   "tablas_medidas": {
     "oversize": {
+      "XS": {
+        "pecho": 106,
+        "cintura": 106,
+        "cadera": 106,
+        "hombros": 50,
+        "largo": 68
+      },
       "S": {
         "pecho": 112,
         "cintura": 112,
@@ -30,9 +37,23 @@
         "cadera": 130,
         "hombros": 58,
         "largo": 76
+      },
+      "XXL": {
+        "pecho": 136,
+        "cintura": 136,
+        "cadera": 136,
+        "hombros": 60,
+        "largo": 78
       }
     },
     "regular_unisex": {
+      "XS": {
+        "pecho": 92,
+        "cintura": 88,
+        "cadera": 92,
+        "hombros": 42,
+        "largo": 64
+      },
       "S": {
         "pecho": 98,
         "cintura": 94,
@@ -60,6 +81,13 @@
         "cadera": 116,
         "hombros": 50,
         "largo": 72
+      },
+      "XXL": {
+        "pecho": 122,
+        "cintura": 118,
+        "cadera": 122,
+        "hombros": 52,
+        "largo": 74
       }
     },
     "remera_fitted_mujer": {
@@ -90,6 +118,20 @@
         "cadera": 98,
         "hombros": 40,
         "largo": 62
+      },
+      "XL": {
+        "pecho": 100,
+        "cintura": 86,
+        "cadera": 104,
+        "hombros": 42,
+        "largo": 64
+      },
+      "XXL": {
+        "pecho": 106,
+        "cintura": 92,
+        "cadera": 110,
+        "hombros": 44,
+        "largo": 66
       }
     },
     "top_mujer": {
@@ -120,6 +162,20 @@
         "cadera": 96,
         "hombros": 36,
         "largo": 50
+      },
+      "XL": {
+        "pecho": 98,
+        "cintura": 82,
+        "cadera": 102,
+        "hombros": 38,
+        "largo": 52
+      },
+      "XXL": {
+        "pecho": 104,
+        "cintura": 88,
+        "cadera": 108,
+        "hombros": 40,
+        "largo": 54
       }
     },
     "chomba_crop_mujer": {
@@ -150,6 +206,20 @@
         "cadera": 98,
         "hombros": 39,
         "largo": 54
+      },
+      "XL": {
+        "pecho": 100,
+        "cintura": 86,
+        "cadera": 104,
+        "hombros": 41,
+        "largo": 56
+      },
+      "XXL": {
+        "pecho": 106,
+        "cintura": 92,
+        "cadera": 110,
+        "hombros": 43,
+        "largo": 58
       }
     }
   },
@@ -163,10 +233,12 @@
       "precio": 38500,
       "calce": "regular",
       "talles": [
+        "XS",
         "S",
         "M",
         "L",
-        "XL"
+        "XL",
+        "XXL"
       ],
       "descripcion": "Chomba clásica Ralph Lauren azul marino con cuello estructurado, icónico Big Pony blanco, escudo '20' y número '3' bordado en la manga.",
       "color_foto": "Azul Marino",
@@ -177,6 +249,13 @@
         }
       ],
       "medidas_talles": {
+        "XS": {
+          "pecho": 88,
+          "cintura": 80,
+          "cadera": 88,
+          "hombros": 41,
+          "largo": 66
+        },
         "S": {
           "pecho": 94,
           "cintura": 86,
@@ -204,6 +283,13 @@
           "cadera": 112,
           "hombros": 49,
           "largo": 78
+        },
+        "XXL": {
+          "pecho": 118,
+          "cintura": 110,
+          "cadera": 118,
+          "hombros": 51,
+          "largo": 81
         }
       }
     },
@@ -219,7 +305,9 @@
         "XS",
         "S",
         "M",
-        "L"
+        "L",
+        "XL",
+        "XXL"
       ],
       "medidas": "top_mujer",
       "descripcion": "Musculosa de morley acanalado, con escote redondo y breteles anchos.",
@@ -247,7 +335,9 @@
         "XS",
         "S",
         "M",
-        "L"
+        "L",
+        "XL",
+        "XXL"
       ],
       "medidas": "top_mujer",
       "descripcion": "Top halter de cuello alto, con los hombros al descubierto y calce al cuerpo.",
@@ -275,7 +365,9 @@
         "XS",
         "S",
         "M",
-        "L"
+        "L",
+        "XL",
+        "XXL"
       ],
       "medidas": "top_mujer",
       "descripcion": "Top halter con escote drapeado y pañuelo atado al cuello que cae por delante.",
@@ -299,7 +391,9 @@
         "XS",
         "S",
         "M",
-        "L"
+        "L",
+        "XL",
+        "XXL"
       ],
       "medidas": "remera_fitted_mujer",
       "descripcion": "Remera de algodón al cuerpo, con cuello redondo y manga corta.",
@@ -328,10 +422,12 @@
       "precio": 45900,
       "calce": "regular",
       "talles": [
+        "XS",
         "S",
         "M",
         "L",
-        "XL"
+        "XL",
+        "XXL"
       ],
       "medidas": "regular_unisex",
       "descripcion": "Buzo de frisa con capucha, cordones y bolsillo canguro.",
@@ -356,10 +452,12 @@
       "precio": 39900,
       "calce": "holgado",
       "talles": [
+        "XS",
         "S",
         "M",
         "L",
-        "XL"
+        "XL",
+        "XXL"
       ],
       "medidas": "oversize",
       "descripcion": "Buzo liso de cuello redondo, de calce amplio.",
@@ -387,7 +485,9 @@
         "XS",
         "S",
         "M",
-        "L"
+        "L",
+        "XL",
+        "XXL"
       ],
       "medidas": "chomba_crop_mujer",
       "descripcion": "Buzo corto con capucha y cintura elastizada.",
