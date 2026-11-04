@@ -1,20 +1,18 @@
 // ==========================================================
 // PROBADOR VIRTUAL INTELIGENTE - PÁGINA WEB
 // Integra la prenda con la cámara, para que no parezca un recorte pegado encima:
-//   1. Pliegues: pasa a la tela las luces y sombras finas que la cámara ve sobre la ropa
-//      de la persona (se mueven con ella). Es un filtro de paso alto: sólo pasan los
-//      cambios locales, no los colores ni los dibujos grandes.
-//   2. Luz: la tela toma la luz del lugar, su brillo general y su tono.
+//   1. Cobertura: la tela es opaca. De la ropa de abajo no pasa ningún detalle, y el torso
+//      queda cubierto aunque la silueta de la cámara falle en alguna zona.
+//   2. Luz: la tela toma la luz del lugar (muy desenfocada), su brillo general y su tono.
 //   3. Cámara: la prenda recibe la misma suavidad y un poco de grano de una webcam.
 //   4. Bordes: la tela se oscurece hacia el contorno, donde da la vuelta al cuerpo.
 // Todo se hace en el navegador: la imagen de la cámara no sale del dispositivo.
 // ==========================================================
 
 const Realismo = (() => {
-  // Pliegues suaves: si son fuertes, la ropa de abajo se transparenta a través de la tela
-  const INTENSIDAD_PLIEGUES = 0.38;
-  const CONTRASTE_PLIEGUES = 1.5;
-  const INTENSIDAD_LUZ = 0.30;
+  const INTENSIDAD_LUZ = 0.22;
+  const PASADAS_OPACIDAD = 5;        // cada pasada acerca a 1 el alfa de la tela, sin endurecer el borde
+  const MARGEN_TORSO = 0.94;         // la zona que se cubre siempre, un poco adentro del contorno
   const INTENSIDAD_GRANO = 0.05;
   const SATURACION = 1.28;           // la luz y la suavidad apagan el color: se le devuelve
   // En una tela clara, el mismo oscurecimiento del contorno se nota mucho más
@@ -23,7 +21,7 @@ const Realismo = (() => {
   const CUADROS_POR_MEDICION = 15;   // el brillo del lugar cambia lento: no hace falta medirlo siempre
 
   const nuevo = (w = 1, h = 1) => { const c = document.createElement("canvas"); c.width = w; c.height = h; return c; };
-  const copia = nuevo(), chica = nuevo(), pliegues = nuevo(), luz = nuevo(), borde = nuevo();
+  const copia = nuevo(), entera = nuevo(), chica = nuevo(), luz = nuevo(), borde = nuevo();
   const medidor = nuevo(8, 8);
   const ctxMedidor = medidor.getContext("2d", { willReadFrequently: true });
   const hayFiltros = typeof ctxMedidor.filter === "string";
@@ -32,8 +30,8 @@ const Realismo = (() => {
   function preparar(W, H) {
     if (estado.W === W && estado.H === H) return;
     Object.assign(estado, { W, H });
-    copia.width = W; copia.height = H;
-    for (const c of [chica, pliegues]) { c.width = Math.ceil(W / 4); c.height = Math.ceil(H / 4); }
+    for (const c of [copia, entera]) { c.width = W; c.height = H; }
+    chica.width = Math.ceil(W / 4); chica.height = Math.ceil(H / 4);
     luz.width = Math.ceil(W / 16); luz.height = Math.ceil(H / 16);
     borde.width = Math.ceil(W / 2); borde.height = Math.ceil(H / 2);
   }
@@ -55,21 +53,12 @@ const Realismo = (() => {
     xc.setTransform(-1, 0, 0, 1, chica.width, 0);
     xc.drawImage(fuente, 0, 0, chica.width, chica.height);
     xc.setTransform(1, 0, 0, 1, 0, 0);
-    const escala = g.distSh / 4;
+    const escala = g.distSh / 16;
 
     if (hayFiltros) {
-      // Paso alto: (detalle + negativo del desenfoque) / 2 da gris parejo donde no hay pliegues
-      const xp = pliegues.getContext("2d");
-      xp.globalAlpha = 1;
-      xp.filter = `grayscale(1) blur(${Math.max(0.4, escala * 0.012)}px)`;
-      xp.drawImage(chica, 0, 0);
-      xp.globalAlpha = 0.5;
-      xp.filter = `grayscale(1) invert(1) blur(${Math.max(2, escala * 0.11)}px)`;
-      xp.drawImage(chica, 0, 0);
-      xp.filter = "none";
-      xp.globalAlpha = 1;
+      // Sólo la luz general: tan desenfocada que no pasa ningún dibujo de la ropa de abajo
       const xl = luz.getContext("2d");
-      xl.filter = "grayscale(1) blur(2px)";
+      xl.filter = `grayscale(1) blur(${Math.max(3, escala * 0.16)}px)`;
       xl.drawImage(chica, 0, 0, luz.width, luz.height);
       xl.filter = "none";
     }
@@ -92,6 +81,38 @@ const Realismo = (() => {
     }
   }
 
+  /** Guarda la prenda recién dibujada, antes de recortarla a la silueta. */
+  function guardarEntera(capa) {
+    preparar(capa.width, capa.height);
+    const x = entera.getContext("2d");
+    x.globalCompositeOperation = "copy";
+    x.drawImage(capa, 0, 0);
+  }
+
+  /**
+   * La silueta de la cámara puede tener huecos sobre la ropa (sobre todo con poca luz o ropa
+   * parecida al fondo). Adentro del torso, la tela se vuelve a poner: ahí no puede faltar.
+   */
+  function cubrirTorso(ctx, dst) {
+    const claves = ["collar_tip_l", "shoulder_l", "armpit_l", "underbust_l", "waist_l", "high_hip_l", "hem_l", "hem_mid",
+      "hem_r", "high_hip_r", "waist_r", "underbust_r", "armpit_r", "shoulder_r", "collar_tip_r", "neck_v"];
+    if (claves.some(k => !dst[k])) return;
+    const cx = (dst.armpit_l[0] + dst.armpit_r[0]) * 0.5, cy = (dst.neck_v[1] + dst.hem_mid[1]) * 0.5;
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.globalCompositeOperation = "source-over";
+    ctx.globalAlpha = 1;
+    ctx.beginPath();
+    claves.forEach((k, i) => {
+      const x = cx + (dst[k][0] - cx) * MARGEN_TORSO, y = cy + (dst[k][1] - cy) * MARGEN_TORSO;
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    });
+    ctx.closePath();
+    ctx.clip();
+    ctx.drawImage(entera, 0, 0);
+    ctx.restore();
+  }
+
   /** Integra la capa de la prenda (ctx/capa, ya recortada) con lo que ve la cámara. */
   function integrar(ctx, capa, fuente, g, claridad = 128) {
     const W = capa.width, H = capa.height;
@@ -99,12 +120,12 @@ const Realismo = (() => {
     if (!estado.grano) estado.grano = crearGrano(ctx);
     // Tela opaca: donde la silueta de la cámara es dudosa, la prenda queda semitransparente.
     // Dibujarla sobre sí misma la vuelve sólida y deja suave sólo el borde.
+    // (los pliegues de la cámara se sacaron: hacían pasar los dibujos de la ropa de abajo)
     ctx.save();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.globalCompositeOperation = "source-over";
     ctx.globalAlpha = 1;
-    ctx.drawImage(capa, 0, 0);
-    ctx.drawImage(capa, 0, 0);
+    for (let i = 0; i < PASADAS_OPACIDAD; i++) ctx.drawImage(capa, 0, 0);
     ctx.restore();
     // Los filtros pintan también fuera de la tela: al final se recorta con esta copia
     const xCopia = copia.getContext("2d");
@@ -120,10 +141,6 @@ const Realismo = (() => {
       ctx.globalAlpha = INTENSIDAD_LUZ;
       ctx.filter = `brightness(${Math.min(1.8, Math.max(0.6, 128 / estado.media))})`;
       ctx.drawImage(luz, 0, 0, W, H);
-      ctx.globalCompositeOperation = "hard-light";
-      ctx.globalAlpha = INTENSIDAD_PLIEGUES;
-      ctx.filter = `contrast(${CONTRASTE_PLIEGUES})`;
-      ctx.drawImage(pliegues, 0, 0, W, H);
       ctx.filter = "none";
     }
     ctx.globalAlpha = 1;
@@ -160,5 +177,5 @@ const Realismo = (() => {
     return hayFiltros ? `saturate(${SATURACION}) blur(${(0.45 * W / 1280).toFixed(2)}px)` : "none";
   }
 
-  return { integrar, suavidad };
+  return { guardarEntera, cubrirTorso, integrar, suavidad };
 })();

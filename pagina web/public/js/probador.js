@@ -329,11 +329,13 @@ function dibujarPrenda() {
   ctxPrenda.globalCompositeOperation = "source-over";
   ctxPrenda.clearRect(0, 0, W, H);
   Malla.dibujarMalla(ctxPrenda, img, p.puntos, dst, p.tiene_mangas);
+  Realismo.guardarEntera(capaPrenda);
   // Prenda pegada al cuerpo: lo que cae fuera de la silueta (más un borde suave) se borra
   if (estado.silueta) {
     ctxPrenda.globalCompositeOperation = "destination-in";
     ctxPrenda.drawImage(capaSilueta, 0, 0);
     if (!Malla.esMangaLarga(p.puntos)) borrarBrazos(g, p.tiene_mangas);  // la manga larga cubre el brazo
+    Realismo.cubrirTorso(ctxPrenda, dst);
   }
   darVolumen(g, img, p.tiene_mangas);
   Realismo.integrar(ctxPrenda, capaPrenda, fuente, g, claridadDe(img));
