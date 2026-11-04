@@ -336,6 +336,7 @@ function dibujarPrenda() {
     if (!Malla.esMangaLarga(p.puntos)) borrarBrazos(g, p.tiene_mangas);  // la manga larga cubre el brazo
   }
   darVolumen(g, img, p.tiene_mangas);
+  Realismo.integrar(ctxPrenda, capaPrenda, fuente, g, claridadDe(img));
   // La prenda nunca tapa la cara
   if (g.medioCara && g.menton && g.nariz) {
     ctxPrenda.globalCompositeOperation = "destination-out";
@@ -351,6 +352,7 @@ function dibujarPrenda() {
   ctx.shadowColor = "rgba(0, 0, 0, 0.28)";
   ctx.shadowBlur = Math.max(4, g.distSh * 0.04);
   ctx.shadowOffsetY = Math.max(1, g.distSh * 0.015);
+  ctx.filter = Realismo.suavidad(W);
   ctx.drawImage(capaPrenda, 0, 0);
   ctx.restore();
   return g;
