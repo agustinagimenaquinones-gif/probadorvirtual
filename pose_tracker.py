@@ -1138,6 +1138,7 @@ class PoseTracker:
 
         if puntos_prenda is not None and tiene_mangas and es_manga_larga(puntos_prenda):
             self._mangas_hasta_la_muneca(dst_pts, info, holgura, d_sh_real, u_up)
+            self._cuello_abierto(dst_pts, puntos_prenda, centro_cuello, u_sh, u_up, ancho_cuello, altura_cuello, d_torso_real)
 
         # Si no tiene mangas (ej. top halter o musculosa), plegar las mangas hacia los hombros
         if not tiene_mangas:
@@ -1153,6 +1154,31 @@ class PoseTracker:
             dst_pts["bicep_in_r"] = dst_pts["armpit_r"]
 
         return dst_pts
+
+    @staticmethod
+    def _cuello_abierto(dst_pts, src, centro_cuello, u_sh, u_up, ancho_cuello, altura_cuello, d_torso):
+        """
+        Buzo con el cuello abierto en la foto: el hueco toma el ancho del cuello de la persona y
+        el resto (una capucha, el borde de adelante) conserva su forma, a la escala de la prenda.
+        """
+        ancho_src = abs(float(src["armpit_r"][0]) - float(src["armpit_l"][0]))
+        ancho_dst = float(np.linalg.norm(dst_pts["armpit_r"] - dst_pts["armpit_l"]))
+        if ancho_src < 1.0:
+            return
+        escala = ancho_dst / ancho_src
+        centro = np.asarray(centro_cuello, np.float32)
+        y_puntas = (float(src["collar_tip_l"][1]) + float(src["collar_tip_r"][1])) * 0.5
+        base = centro + u_up * (altura_cuello * 0.15)
+        for lado, signo in (("l", -1.0), ("r", 1.0)):
+            punta = base + u_sh * (signo * ancho_cuello * 1.05)
+            dst_pts[f"collar_tip_{lado}"] = punta.astype(np.float32)
+            d_x = abs(float(src[f"collar_top_{lado}"][0]) - float(src[f"collar_tip_{lado}"][0])) * escala
+            d_y = (float(src[f"collar_tip_{lado}"][1]) - float(src[f"collar_top_{lado}"][1])) * escala
+            dst_pts[f"collar_top_{lado}"] = (punta + u_sh * (signo * d_x) + u_up * d_y).astype(np.float32)
+        bajada = float(np.clip((float(src["neck_v"][1]) - y_puntas) * escala, d_torso * 0.02, d_torso * 0.22))
+        dst_pts["neck_v"] = (base - u_up * bajada).astype(np.float32)
+        arriba = (y_puntas - float(src["collar_top_mid"][1])) * escala
+        dst_pts["collar_top_mid"] = (base + u_up * arriba).astype(np.float32)
 
     @staticmethod
     def _mangas_hasta_la_muneca(dst_pts, info, holgura, d_sh, u_up):

@@ -53,13 +53,21 @@ PRENDAS = {
     "buzo_capucha_bordo": {
         # Fondo gris con sombra: la tela se reconoce porque tiene color y el fondo no
         "foto": "foto_15.png", "gris_maximo": 170, "croma_minimo": 28, "rellenar_huecos": True,
+        # Adentro de la capucha va el cuello de la persona: se abre hasta el borde de arriba
+        "quitar": [[(252, 130), (258, 210), (308, 271), (351, 301), (398, 322), (438, 301), (486, 268), (526, 237),
+                    (550, 210), (556, 130)]],
     },
     "buzo_cuello_redondo_marron": {
         # Hay dos buzos en la foto: el marrón está adelante, el crema se genera tiñéndolo
         "foto": "foto_16.png", "gris_maximo": 135, "rellenar_huecos": True,
+        # La parte de adentro del cuello y la etiqueta de atrás irían sobre el cuello de la persona
+        "quitar": [[(700, 340), (703, 368), (719, 391), (745, 399), (780, 402), (815, 399), (841, 390), (858, 368),
+                    (860, 340)]],
     },
     "buzo_capucha_corto_negro": {
         "foto": "foto_17.png", "gris_maximo": 200, "rellenar_huecos": True,
+        "quitar": [[(440, 30), (440, 230), (455, 290), (510, 340), (570, 372), (630, 340), (680, 290), (690, 230),
+                    (690, 30)]],
     },
     "remera_entallada_blanca": {
         "foto": "foto_14.webp", "gris_maximo": 250,

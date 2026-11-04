@@ -164,6 +164,26 @@ const Malla = (() => {
     }
   }
 
+  // Buzo con el cuello abierto en la foto: el hueco toma el ancho del cuello de la persona y
+  // el resto (una capucha, el borde de adelante) conserva su forma
+  function cuelloAbierto(dst, src, g, anchoCuello, alturaCuello) {
+    const anchoSrc = Math.abs(src.armpit_r[0] - src.armpit_l[0]);
+    if (anchoSrc < 1) return;
+    const escala = largo(res(dst.armpit_r, dst.armpit_l)) / anchoSrc;
+    const yPuntas = (src.collar_tip_l[1] + src.collar_tip_r[1]) * 0.5;
+    const base = sum(g.cuello, por(g.uUp, alturaCuello * 0.15));
+    for (const [lado, signo] of [["l", -1], ["r", 1]]) {
+      const punta = sum(base, por(g.uSh, signo * anchoCuello * 1.05));
+      dst[`collar_tip_${lado}`] = punta;
+      const dx = Math.abs(src[`collar_top_${lado}`][0] - src[`collar_tip_${lado}`][0]) * escala;
+      const dy = (src[`collar_tip_${lado}`][1] - src[`collar_top_${lado}`][1]) * escala;
+      dst[`collar_top_${lado}`] = S(punta, por(g.uSh, signo * dx), por(g.uUp, dy));
+    }
+    const bajada = clip((src.neck_v[1] - yPuntas) * escala, g.distTorso * 0.02, g.distTorso * 0.22);
+    dst.neck_v = sum(base, por(g.uUp, -bajada));
+    dst.collar_top_mid = sum(base, por(g.uUp, (yPuntas - src.collar_top_mid[1]) * escala));
+  }
+
   // Top halter: arriba, la tela es mucho más angosta que el pecho (una tira que rodea el cuello)
   function esCuelloHalter(src) {
     if (!src.collar_top_l || !src.collar_top_r || !src.armpit_l || !src.armpit_r) return false;
@@ -409,7 +429,10 @@ const Malla = (() => {
       }
     } else {
       escoteComoLaPrenda(dst, prenda.puntos, cuello, uSh, uTorso, anchoCuello, alturaCuello, g.distTorso);
-      if (esMangaLarga(prenda.puntos)) mangasHastaLaMuneca(dst, g, holgura);
+      if (esMangaLarga(prenda.puntos)) {
+        mangasHastaLaMuneca(dst, g, holgura);
+        cuelloAbierto(dst, prenda.puntos, g, anchoCuello, alturaCuello);
+      }
     }
     // El ruedo se ve curvo, como un aro alrededor del cuerpo: los costados suben un poco
     for (const k of ["hem_l", "hem_r"]) dst[k] = sum(dst[k], por(uTorso, -g.distSh * 0.035));

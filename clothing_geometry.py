@@ -202,29 +202,38 @@ def _puntos_manga_larga(alpha, pts, xmin, xmax, ymin, ymax):
         nuevos[f"high_hip_{lado}"] = (x_torso, nivel(0.78))
         nuevos[f"hem_{lado}"] = (x_torso, float(y_ruedo))
 
-    # Cuello o capucha, medidos con el ancho del torso (no con el de toda la foto)
-    y_arriba = float(np.where(mask[:, max(0, cx - 2):cx + 3].any(axis=1))[0][0])
-    medio = ancho_torso * 0.20
+    # Cuello o capucha, medidos con el ancho del torso (no con el de toda la foto). La foto
+    # tiene el cuello abierto: en el centro, lo primero que hay es el borde de adelante.
+    y_escote = arriba(cx)
+    paso = max(2.0, ancho_torso * 0.01)
 
-    def union_capucha(lado):
+    def borde_escote(lado):
+        # Hacia el costado, el contorno sube: ahí termina el hueco del cuello
+        x = float(cx)
+        while abs(x - cx) < ancho_torso * 0.35:
+            if arriba(x) < y_escote - gh * 0.015:
+                return x
+            x += lado * paso
+        return cx + lado * ancho_torso * 0.20
+
+    def union_capucha(lado, x_escote):
         # Una capucha sube de golpe desde el hombro: el cuello empieza donde el contorno se empina
         x, anterior = cx + lado * ancho_torso * 0.48, None
-        paso = max(2.0, ancho_torso * 0.01)
-        while abs(x - cx) > ancho_torso * 0.12:
+        while abs(x - cx) > abs(x_escote - cx):
             y = arriba(x)
             if anterior is not None and anterior - y > paso * 1.5:
                 return float(x + lado * paso), anterior
             anterior = y
             x -= lado * paso
-        return float(cx + lado * medio), arriba(cx + lado * medio)
+        x_cuello = x_escote + lado * paso * 2.0
+        return float(x_cuello), arriba(x_cuello)
 
-    nuevos["collar_top_mid"] = (float(cx), y_arriba)
-    nuevos["collar_top_l"] = union_capucha(-1)
-    nuevos["collar_top_r"] = union_capucha(1)
-    y_escote = max(float(pts["neck_v"][1]), y_hombro + (y_ruedo - y_hombro) * 0.05)
-    y_punta = (y_arriba + y_escote * 3.0) / 4.0
-    nuevos["collar_tip_l"] = (cx - medio * 0.8, y_punta)
-    nuevos["collar_tip_r"] = (cx + medio * 0.8, y_punta)
+    for lado_txt, lado in (("l", -1), ("r", 1)):
+        x_escote = borde_escote(lado)
+        nuevos[f"collar_tip_{lado_txt}"] = (float(x_escote), arriba(x_escote))
+        nuevos[f"collar_top_{lado_txt}"] = union_capucha(lado, x_escote)
+    y_arriba = min(nuevos["collar_top_l"][1], nuevos["collar_top_r"][1], nuevos["collar_tip_l"][1], nuevos["collar_tip_r"][1])
+    nuevos["collar_top_mid"] = (float(cx), float(y_arriba))
     nuevos["neck_v"] = (float(cx), y_escote)
     nuevos["chest_mid"] = (float(cx), y_axila)
     nuevos["torso_mid"] = (float(cx), nivel(0.50))
