@@ -11,10 +11,12 @@
 // ==========================================================
 
 const Realismo = (() => {
-  const INTENSIDAD_PLIEGUES = 0.65;
-  const CONTRASTE_PLIEGUES = 2.2;
-  const INTENSIDAD_LUZ = 0.55;
-  const INTENSIDAD_GRANO = 0.07;
+  // Pliegues suaves: si son fuertes, la ropa de abajo se transparenta a través de la tela
+  const INTENSIDAD_PLIEGUES = 0.38;
+  const CONTRASTE_PLIEGUES = 1.5;
+  const INTENSIDAD_LUZ = 0.30;
+  const INTENSIDAD_GRANO = 0.05;
+  const SATURACION = 1.28;           // la luz y la suavidad apagan el color: se le devuelve
   // En una tela clara, el mismo oscurecimiento del contorno se nota mucho más
   const INTENSIDAD_BORDE_OSCURA = 0.40;
   const INTENSIDAD_BORDE_CLARA = 0.16;
@@ -84,8 +86,8 @@ const Realismo = (() => {
       r /= n; v /= n; a /= n;
       const maximo = Math.max(r, v, a, 1);
       estado.media = Math.max(20, 0.3 * r + 0.59 * v + 0.11 * a);
-      estado.exposicion = Math.min(1, Math.max(0.72, estado.media / 110));
-      const canal = (c) => Math.round(255 * estado.exposicion * (0.70 + 0.30 * c / maximo));
+      estado.exposicion = Math.min(1, Math.max(0.86, estado.media / 110));
+      const canal = (c) => Math.round(255 * estado.exposicion * (0.86 + 0.14 * c / maximo));
       estado.tinte = `rgb(${canal(r)},${canal(v)},${canal(a)})`;
     }
   }
@@ -95,6 +97,15 @@ const Realismo = (() => {
     const W = capa.width, H = capa.height;
     preparar(W, H);
     if (!estado.grano) estado.grano = crearGrano(ctx);
+    // Tela opaca: donde la silueta de la cámara es dudosa, la prenda queda semitransparente.
+    // Dibujarla sobre sí misma la vuelve sólida y deja suave sólo el borde.
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.globalCompositeOperation = "source-over";
+    ctx.globalAlpha = 1;
+    ctx.drawImage(capa, 0, 0);
+    ctx.drawImage(capa, 0, 0);
+    ctx.restore();
     // Los filtros pintan también fuera de la tela: al final se recorta con esta copia
     const xCopia = copia.getContext("2d");
     xCopia.globalCompositeOperation = "copy";
@@ -144,9 +155,9 @@ const Realismo = (() => {
     ctx.restore();
   }
 
-  /** Filtro para dibujar la prenda con la suavidad de la cámara ("none" si no hay filtros). */
+  /** Filtro para dibujar la prenda: color intenso y la suavidad de la cámara ("none" si no hay filtros). */
   function suavidad(W) {
-    return hayFiltros ? `blur(${(0.55 * W / 1280).toFixed(2)}px)` : "none";
+    return hayFiltros ? `saturate(${SATURACION}) blur(${(0.45 * W / 1280).toFixed(2)}px)` : "none";
   }
 
   return { integrar, suavidad };
