@@ -165,14 +165,15 @@ const Malla = (() => {
     }
   }
 
-  // Buzo con el cuello abierto en la foto: el hueco toma el ancho del cuello de la persona y
-  // el resto (una capucha, el borde de adelante) conserva su forma
+  // Buzo con el cuello abierto en la foto: el hueco abraza el cuello de la persona. A los costados
+  // sube hasta la base del cuello, adelante baja apenas y los hombros caen desde ahí, como en una
+  // prenda puesta. El resto (una capucha, el borde de adelante) conserva su forma.
   function cuelloAbierto(dst, src, g, anchoCuello, alturaCuello) {
     const anchoSrc = Math.abs(src.armpit_r[0] - src.armpit_l[0]);
     if (anchoSrc < 1) return;
     const escala = largo(res(dst.armpit_r, dst.armpit_l)) / anchoSrc;
     const yPuntas = (src.collar_tip_l[1] + src.collar_tip_r[1]) * 0.5;
-    const base = sum(g.cuello, por(g.uUp, alturaCuello * 0.15));
+    const base = sum(g.cuello, por(g.uUp, g.distSh * 0.10));
     for (const [lado, signo] of [["l", -1], ["r", 1]]) {
       const punta = sum(base, por(g.uSh, signo * anchoCuello * 1.05));
       dst[`collar_tip_${lado}`] = punta;
@@ -180,9 +181,10 @@ const Malla = (() => {
       const dx = Math.min(anchoCuello * 0.7, Math.abs(src[`collar_top_${lado}`][0] - src[`collar_tip_${lado}`][0]) * escala);
       const dy = Math.min(alturaCuello * 0.6, (src[`collar_tip_${lado}`][1] - src[`collar_top_${lado}`][1]) * escala);
       dst[`collar_top_${lado}`] = S(punta, por(g.uSh, signo * dx), por(g.uUp, dy));
+      dst[`shoulder_${lado}`] = sum(dst[`shoulder_${lado}`], por(g.uUp, -g.distSh * 0.03));
     }
-    const bajada = clip((src.neck_v[1] - yPuntas) * escala, g.distTorso * 0.02, g.distTorso * 0.22);
-    dst.neck_v = sum(base, por(g.uUp, -bajada));
+    const bajada = clip((src.neck_v[1] - yPuntas) * escala, g.distSh * 0.05, g.distSh * 0.20);
+    dst.neck_v = sum(g.cuello, por(g.uUp, -bajada));
     dst.collar_top_mid = sum(base, por(g.uUp, (yPuntas - src.collar_top_mid[1]) * escala));
   }
 

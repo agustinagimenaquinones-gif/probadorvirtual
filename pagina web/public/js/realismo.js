@@ -164,6 +164,48 @@ const Realismo = (() => {
     if (n) estado.colorTela = `rgb(${Math.round(r / n)},${Math.round(v / n)},${Math.round(a / n)})`;
   }
 
+  // La curva del escote: va de un costado del cuello al otro y pasa por el punto más bajo
+  function curvaEscote(c, dst) {
+    const l = dst.collar_tip_l, r = dst.collar_tip_r, v = dst.neck_v;
+    const dx = (v[0] - (l[0] + r[0]) / 2) * 4 / 3, dy = (v[1] - (l[1] + r[1]) / 2) * 4 / 3;
+    c.moveTo(l[0], l[1]);
+    c.bezierCurveTo(l[0] + dx, l[1] + dy, r[0] + dx, r[1] + dy, r[0], r[1]);
+  }
+
+  // La zona del cuello: del escote hacia arriba, hasta el borde de la imagen
+  function zonaDelCuello(c, dst, g) {
+    const m = g.distSh * 0.04;
+    curvaEscote(c, dst);
+    c.lineTo(dst.collar_tip_r[0] + m, 0);
+    c.lineTo(dst.collar_tip_l[0] - m, 0);
+    c.closePath();
+  }
+
+  // Abre el escote en la tela y le da el borde de un cuello tejido
+  function abrirEscote(ctx, dst, g) {
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = "destination-out";
+    ctx.beginPath();
+    zonaDelCuello(ctx, dst, g);
+    ctx.fill();
+    ctx.globalCompositeOperation = "source-atop";
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    curvaEscote(ctx, dst);
+    ctx.strokeStyle = "rgba(0,0,0,0.30)";
+    ctx.lineWidth = g.distSh * 0.05;
+    ctx.stroke();
+    ctx.translate(g.uDown[0] * g.distSh * 0.032, g.uDown[1] * g.distSh * 0.032);
+    ctx.beginPath();
+    curvaEscote(ctx, dst);
+    ctx.strokeStyle = "rgba(255,255,255,0.10)";
+    ctx.lineWidth = g.distSh * 0.012;
+    ctx.stroke();
+    ctx.restore();
+  }
+
   /**
    * Va después de integrar la tela. El pelo y la cara quedan adelante; con mangas, también el
    * cuello. La ropa propia que asoma (cuello de una camisa, hombros, el espacio junto a una
@@ -171,6 +213,7 @@ const Realismo = (() => {
    */
   function protegerPersona(ctx, capa, fuente, g, dst, tieneMangas, mangaLarga) {
     enviarCuadro(fuente, g);
+    if (mangaLarga) abrirEscote(ctx, dst, g);
     const p = estado.partes;
     if (!p || performance.now() - p.cuando > MS_PARTES_VIEJAS) return;
     const W = capa.width, H = capa.height;
@@ -184,10 +227,10 @@ const Realismo = (() => {
     dibujarParte(ctx, CARA, W, H, dx, dy);
     const yEscote = dst.neck_v ? dst.neck_v[1] : g.cuello[1];
     if (tieneMangas) {
-      // El cuello: sólo arriba del escote, para que la tela siga tapando el resto de la piel
+      // El cuello: sólo dentro del escote, para que la tela siga tapando el resto de la piel
       ctx.save();
       ctx.beginPath();
-      ctx.rect(g.cuello[0] - g.distSh * 0.45, 0, g.distSh * 0.9, yEscote);
+      zonaDelCuello(ctx, dst, g);
       ctx.clip();
       dibujarParte(ctx, PIEL, W, H, dx, dy);
       ctx.restore();
