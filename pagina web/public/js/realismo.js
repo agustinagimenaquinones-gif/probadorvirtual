@@ -241,7 +241,7 @@ const Realismo = (() => {
       // El revés de la tela, por dentro del cuello: el mismo color, en sombra
       estado.colorInterior = `rgb(${Math.round(r / n * 0.5)},${Math.round(v / n * 0.5)},${Math.round(a / n * 0.5)})`;
       // Junto al borde la tela está en sombra: la ropa propia que asoma ahí toma ese tono
-      estado.colorBorde = `rgb(${Math.round(r / n * 0.72)},${Math.round(v / n * 0.72)},${Math.round(a / n * 0.72)})`;
+      estado.colorBorde = `rgb(${Math.round(r / n * 0.5)},${Math.round(v / n * 0.5)},${Math.round(a / n * 0.5)})`;
     }
   }
 
@@ -351,7 +351,7 @@ const Realismo = (() => {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.globalAlpha = 1;
     ctx.globalCompositeOperation = "destination-in";
-    ctx.filter = "blur(1.5px)";
+    if (!estado.liviano) ctx.filter = "blur(1.5px)";
     ctx.drawImage(persona, 0, 0, W, H);
     ctx.restore();
   }
@@ -515,7 +515,8 @@ const Realismo = (() => {
         });
       }
     }
-    if (!estado.liviano) recortarAlFondo(ctx, W, H, dx, dy, dst);
+    // (también en el modo liviano: sin esto la tela queda en el aire fuera del cuerpo)
+    recortarAlFondo(ctx, W, H, dx, dy, dst);
     ctx.restore();
   }
 
@@ -659,7 +660,7 @@ const Realismo = (() => {
     svg.setAttribute("height", "0");
     svg.style.position = "absolute";
     svg.innerHTML = '<filter id="umbralTela" color-interpolation-filters="sRGB"><feComponentTransfer>'
-      + '<feFuncA type="linear" slope="4" intercept="-1.5"/></feComponentTransfer></filter>'
+      + '<feFuncA type="linear" slope="7" intercept="-2.9"/></feComponentTransfer></filter>'
       + '<filter id="dilatarTela" color-interpolation-filters="sRGB"><feComponentTransfer>'
       + '<feFuncA type="linear" slope="8" intercept="-1.5"/></feComponentTransfer></filter>';
     document.body.appendChild(svg);
@@ -669,12 +670,14 @@ const Realismo = (() => {
 
   /** Redondea el contorno de la prenda: sin las puntas de los triángulos de la malla. */
   function redondearContorno(ctx, capa, g) {
-    if (!hayFiltros || estado.liviano || !prepararUmbral()) return;
-    const w = Math.ceil(capa.width / 2), h = Math.ceil(capa.height / 2);
+    if (!hayFiltros || !prepararUmbral()) return;
+    // (en el modo liviano, en más chico: cuesta poco y los bordes siguen siendo suaves)
+    const div = estado.liviano ? 4 : 2;
+    const w = Math.ceil(capa.width / div), h = Math.ceil(capa.height / div);
     if (redondeo.width !== w || redondeo.height !== h) { redondeo.width = w; redondeo.height = h; }
     const x = redondeo.getContext("2d");
     x.globalCompositeOperation = "copy";
-    x.filter = `blur(${Math.max(2, g.distSh * 0.03).toFixed(1)}px) url(#umbralTela)`;
+    x.filter = `blur(${Math.max(1.5, g.distSh * 0.04 / div).toFixed(1)}px) url(#umbralTela)`;
     x.drawImage(capa, 0, 0, w, h);
     x.filter = "none";
     ctx.save();
@@ -727,7 +730,7 @@ const Realismo = (() => {
     ctx.globalCompositeOperation = "destination-out";
     ctx.fillRect(cx - R, y0, 2 * R, y1 - y0);
     ctx.globalCompositeOperation = "source-over";
-    const N = 28;
+    const N = estado.liviano ? 14 : 28;
     for (let i = 0; i < N; i++) {
       const u0 = -1 + 2 * i / N, u1 = u0 + 2 / N;
       const s0 = cx + R * u0, s1 = cx + R * u1;
@@ -778,7 +781,7 @@ const Realismo = (() => {
     ctx.globalAlpha = 1;
     for (let i = 0; i < PASADAS_OPACIDAD; i++) ctx.drawImage(capa, 0, 0);
     ctx.restore();
-    if (mangaLarga && dst && !estado.liviano) envolverTorso(ctx, capa, g, dst);
+    if (mangaLarga && dst) envolverTorso(ctx, capa, g, dst);
     redondearContorno(ctx, capa, g);
     // Los filtros pintan también fuera de la tela: al final se recorta con esta copia
     const xCopia = copia.getContext("2d");
