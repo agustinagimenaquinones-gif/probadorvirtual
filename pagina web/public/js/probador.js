@@ -157,6 +157,46 @@ async function comprar() {
 }
 
 // ---------------------------------------------------------------- cámara y MediaPipe
+// Abre la cámara probando de lo más exigente a lo más simple. Si el navegador recuerda una
+// cámara que ya no está (por ejemplo una USB que se desconectó), prueba con cada una de las
+// que ve en ese momento.
+async function abrirCamara() {
+  const md = navigator.mediaDevices;
+  const intentos = [
+    { video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false },
+    { video: true, audio: false },
+  ];
+  let ultimo = null;
+  for (const pedido of intentos) {
+    try { return await md.getUserMedia(pedido); } catch (e) {
+      if (e.name === "NotAllowedError" || e.name === "SecurityError") throw e;
+      ultimo = e;
+    }
+  }
+  const camaras = (await md.enumerateDevices()).filter(d => d.kind === "videoinput" && d.deviceId);
+  for (const c of camaras) {
+    try { return await md.getUserMedia({ video: { deviceId: { exact: c.deviceId } }, audio: false }); } catch (e) { ultimo = e; }
+  }
+  throw ultimo || new Error("No se encontró ninguna cámara.");
+}
+
+// Mensajes claros para los errores de cámara más comunes
+function mensajeDeCamara(error) {
+  switch (error && error.name) {
+    case "NotAllowedError":
+    case "SecurityError":
+      return "Sin permiso para la cámara. Habilitala en el navegador (ícono del candado) y recargá la página.";
+    case "NotFoundError":
+    case "OverconstrainedError":
+      return "No encontramos la cámara. Revisá que esté conectada (si es USB, desenchufala y volvé a enchufarla) y recargá la página.";
+    case "NotReadableError":
+    case "AbortError":
+      return "La cámara está ocupada: cerrá otras pestañas o programas que la usen (videollamadas, otra pestaña del probador) y recargá la página.";
+    default:
+      return `No se pudo iniciar el probador: ${error && error.message}`;
+  }
+}
+
 async function iniciarCamara() {
   if (fotoDemo) {
     fuente = new Image();
@@ -168,9 +208,7 @@ async function iniciarCamara() {
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
     throw new Error("Este navegador no permite usar la cámara (hace falta https).");
   }
-  const flujo = await navigator.mediaDevices.getUserMedia({
-    video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false,
-  });
+  const flujo = await abrirCamara();
   video.srcObject = flujo;
   await video.play();
   for (const c of [lienzo, capaPrenda, capaSilueta]) { c.width = video.videoWidth; c.height = video.videoHeight; }
@@ -462,8 +500,6 @@ function conectarControles() {
     siguienteCuadro();
   } catch (error) {
     console.error(error);
-    $("#mensaje").textContent = error.name === "NotAllowedError"
-      ? "Sin permiso para la cámara. Habilitala en el navegador (ícono del candado) y recargá la página."
-      : `No se pudo iniciar el probador: ${error.message}`;
+    $("#mensaje").textContent = mensajeDeCamara(error);
   }
 })();
