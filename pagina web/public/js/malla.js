@@ -173,7 +173,11 @@ const Malla = (() => {
     if (anchoSrc < 1) return;
     const escala = largo(res(dst.armpit_r, dst.armpit_l)) / anchoSrc;
     const yPuntas = (src.collar_tip_l[1] + src.collar_tip_r[1]) * 0.5;
-    const base = sum(g.cuello, por(g.uUp, g.distSh * 0.14));
+    // Con la base del cuello medida en la cámara (piel del cuello), el escote la rodea ahí mismo;
+    // si no, se estima desde los hombros
+    const medido = g.cuelloReal;
+    if (medido) anchoCuello = medido.medio * 1.2;
+    const base = medido ? sum(medido.base, por(g.uUp, g.distSh * 0.03)) : sum(g.cuello, por(g.uUp, g.distSh * 0.14));
     for (const [lado, signo] of [["l", -1], ["r", 1]]) {
       const punta = sum(base, por(g.uSh, signo * anchoCuello * 1.05));
       dst[`collar_tip_${lado}`] = punta;
