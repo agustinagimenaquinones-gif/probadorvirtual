@@ -1172,8 +1172,9 @@ class PoseTracker:
         for lado, signo in (("l", -1.0), ("r", 1.0)):
             punta = base + u_sh * (signo * ancho_cuello * 1.05)
             dst_pts[f"collar_tip_{lado}"] = punta.astype(np.float32)
-            d_x = abs(float(src[f"collar_top_{lado}"][0]) - float(src[f"collar_tip_{lado}"][0])) * escala
-            d_y = (float(src[f"collar_tip_{lado}"][1]) - float(src[f"collar_top_{lado}"][1])) * escala
+            # (acotado: si no, una capucha abierta forma puntas que salen de los hombros)
+            d_x = min(ancho_cuello * 0.7, abs(float(src[f"collar_top_{lado}"][0]) - float(src[f"collar_tip_{lado}"][0])) * escala)
+            d_y = min(altura_cuello * 0.6, (float(src[f"collar_tip_{lado}"][1]) - float(src[f"collar_top_{lado}"][1])) * escala)
             dst_pts[f"collar_top_{lado}"] = (punta + u_sh * (signo * d_x) + u_up * d_y).astype(np.float32)
         bajada = float(np.clip((float(src["neck_v"][1]) - y_puntas) * escala, d_torso * 0.02, d_torso * 0.22))
         dst_pts["neck_v"] = (base - u_up * bajada).astype(np.float32)
@@ -1199,9 +1200,10 @@ class PoseTracker:
             dst_pts[f"shoulder_{lado}"] = (p_sh + u_up * (d_sh * 0.11) - u_cuff * (d_sh * 0.03)).astype(np.float32)
             dst_pts[f"sleeve_top_{lado}"] = (p_sh + (p_elb - p_sh) * 0.12 - u_cuff * radio * 1.25).astype(np.float32)
             dst_pts[f"bicep_out_{lado}"] = (p_elb - n_codo * radio).astype(np.float32)
-            dst_pts[f"bicep_in_{lado}"] = (p_elb + n_codo * radio).astype(np.float32)
+            # Hacia el cuerpo, la manga se pasa: es mejor que se superponga a que quede un hueco
+            dst_pts[f"bicep_in_{lado}"] = (p_elb + n_codo * radio * 1.6).astype(np.float32)
             dst_pts[f"sleeve_cuff_out_{lado}"] = (p_wri - n_ante * radio * 0.80).astype(np.float32)
-            dst_pts[f"sleeve_cuff_in_{lado}"] = (p_wri + n_ante * radio * 0.80).astype(np.float32)
+            dst_pts[f"sleeve_cuff_in_{lado}"] = (p_wri + n_ante * radio).astype(np.float32)
 
     @staticmethod
     def _medios_anchos_desde_silueta(medidas, holgura, calce, d_sh):

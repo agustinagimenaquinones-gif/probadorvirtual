@@ -158,9 +158,10 @@ const Malla = (() => {
       dst[`shoulder_${lado}`] = S(sh, por(g.uUp, g.distSh * 0.11), por(uCuff, -g.distSh * 0.03));
       dst[`sleeve_top_${lado}`] = S(sh, por(res(el, sh), 0.12), por(uCuff, -radio * 1.25));
       dst[`bicep_out_${lado}`] = sum(el, por(nCodo, -radio));
-      dst[`bicep_in_${lado}`] = sum(el, por(nCodo, radio));
+      // Hacia el cuerpo, la manga se pasa: es mejor que se superponga a que quede un hueco
+      dst[`bicep_in_${lado}`] = sum(el, por(nCodo, radio * 1.6));
       dst[`sleeve_cuff_out_${lado}`] = sum(wr, por(nAnte, -radio * 0.8));
-      dst[`sleeve_cuff_in_${lado}`] = sum(wr, por(nAnte, radio * 0.8));
+      dst[`sleeve_cuff_in_${lado}`] = sum(wr, por(nAnte, radio));
     }
   }
 
@@ -175,8 +176,9 @@ const Malla = (() => {
     for (const [lado, signo] of [["l", -1], ["r", 1]]) {
       const punta = sum(base, por(g.uSh, signo * anchoCuello * 1.05));
       dst[`collar_tip_${lado}`] = punta;
-      const dx = Math.abs(src[`collar_top_${lado}`][0] - src[`collar_tip_${lado}`][0]) * escala;
-      const dy = (src[`collar_tip_${lado}`][1] - src[`collar_top_${lado}`][1]) * escala;
+      // (acotado: si no, una capucha abierta forma puntas que salen de los hombros)
+      const dx = Math.min(anchoCuello * 0.7, Math.abs(src[`collar_top_${lado}`][0] - src[`collar_tip_${lado}`][0]) * escala);
+      const dy = Math.min(alturaCuello * 0.6, (src[`collar_tip_${lado}`][1] - src[`collar_top_${lado}`][1]) * escala);
       dst[`collar_top_${lado}`] = S(punta, por(g.uSh, signo * dx), por(g.uUp, dy));
     }
     const bajada = clip((src.neck_v[1] - yPuntas) * escala, g.distTorso * 0.02, g.distTorso * 0.22);

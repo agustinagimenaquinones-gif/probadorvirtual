@@ -14,8 +14,9 @@ import numpy as np
 import cv2
 
 # Cuánto oscurece un pliegue y cuánta luz suma su lado claro (niveles de 0 a 255)
-INTENSIDAD_SOMBRA = 0.30
-LUZ_TELA_OSCURA = 24.0
+INTENSIDAD_SOMBRA = 0.26
+ATENUAR_TELA_CLARA = 0.60    # en una tela clara, la misma sombra se nota mucho más
+LUZ_TELA_OSCURA = 12.0
 LUZ_TELA_CLARA = 0.10
 # Trazar las curvas es lo más caro y un cuadro de atraso no se nota: se trazan un cuadro sí y otro no
 _recuerdo = {"cuadro": 0, "mapa": None}
@@ -44,9 +45,8 @@ def lista_de_pliegues(dst, dist_sh, manga_larga=False):
         # La tela tira de la axila hacia el pecho
         pliegues.append((_curva(axila, tramo(axila, p["chest_mid"], 0.62) + np.array([0, dist_sh * 0.05]), signo * dist_sh * 0.03), 1.0))
         pliegues.append((_curva(tramo(axila, cintura, 0.30), tramo(axila, p["torso_mid"], 0.55), signo * dist_sh * 0.03), 0.75))
-        # Se junta en la cintura
-        pliegues.append((_curva(cintura, tramo(cintura, p["torso_mid"], 0.50), -signo * dist_sh * 0.02), 0.85))
-        pliegues.append((_curva(tramo(cintura, cadera, 0.45), tramo(cadera, p["torso_mid"], 0.42), signo * dist_sh * 0.02), 0.6))
+        # Se junta en la cintura, sólo cerca del costado (si cruzan el torso, parecen abdominales)
+        pliegues.append((_curva(cintura, tramo(cintura, p["torso_mid"], 0.22), -signo * dist_sh * 0.015), 0.5))
     # La gravedad: caen casi rectos hacia el ruedo
     for t, peso in ((0.20, 0.7), (0.42, 0.5), (0.63, 0.6), (0.82, 0.7)):
         arriba = tramo(p["waist_l"], p["waist_r"], t)
@@ -76,8 +76,9 @@ def mapa_pliegues(alto, ancho, xmin, ymin, dst, dist_sh, manga_larga=False):
     h, w = max(4, int(alto * escala)), max(4, int(ancho * escala))
     mapa = np.zeros((h, w), np.float32)
     origen = np.array([xmin, ymin], np.float32)
-    grosor = max(1, int(dist_sh * 0.012 * escala))
-    desvio = dist_sh * 0.012 * escala
+    # Bandas anchas y muy suaves: si son finas, parecen rayones sobre la tela
+    grosor = max(2, int(dist_sh * 0.045 * escala))
+    desvio = dist_sh * 0.028 * escala
     for puntos, peso in lista_de_pliegues(dst, dist_sh, manga_larga):
         pares = ((puntos - origen) * escala)
         linea = np.int32(np.round(pares))[None, :, :]
@@ -105,7 +106,8 @@ def aplicar_pliegues(parche_rgba, xmin, ymin, dst, dist_sh, manga_larga=False):
     h, w = mapa.shape[:2]
     claridad = cv2.resize(cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY), (w, h), interpolation=cv2.INTER_AREA).astype(np.float32) / 255.0
     sombra, luz = np.minimum(mapa, 0.0), np.maximum(mapa, 0.0)
-    factor = np.clip((1.0 + sombra * INTENSIDAD_SOMBRA + luz * LUZ_TELA_CLARA * claridad) * 128.0, 0, 255).astype(np.uint8)
+    fuerza = INTENSIDAD_SOMBRA * (1.0 - ATENUAR_TELA_CLARA * claridad)
+    factor = np.clip((1.0 + sombra * fuerza + luz * LUZ_TELA_CLARA * claridad) * 128.0, 0, 255).astype(np.uint8)
     suma = np.clip(luz * LUZ_TELA_OSCURA * np.clip(1.0 - claridad * 2.0, 0.0, 1.0), 0, 255).astype(np.uint8)
     factor = cv2.resize(factor, (ancho, alto), interpolation=cv2.INTER_LINEAR)
     suma = cv2.resize(suma, (ancho, alto), interpolation=cv2.INTER_LINEAR)

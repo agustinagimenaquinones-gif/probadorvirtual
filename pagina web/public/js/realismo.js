@@ -17,7 +17,7 @@ const Realismo = (() => {
   const INTENSIDAD_LUZ = 0.22;
   const PASADAS_OPACIDAD = 5;        // cada pasada acerca a 1 el alfa de la tela, sin endurecer el borde
   const MARGEN_TORSO = 0.94;         // la zona que se cubre siempre, un poco adentro del contorno
-  const INTENSIDAD_PLIEGUES = 0.55;
+  const INTENSIDAD_PLIEGUES = 0.42;
   const RIGIDEZ_RESORTE = 170, FRENO_RESORTE = 20;
   const CUADROS_DE_SALTO = 6;        // un cambio que dura más que esto es real, no un error
   const MS_LENTO = 45;               // más que esto entre cuadros: se pasa al modo liviano
@@ -147,13 +147,13 @@ const Realismo = (() => {
     const mix = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
     const lista = [];
     for (const [lado, signo] of [["l", 1], ["r", -1]]) {
-      const axila = P(`armpit_${lado}`), cintura = P(`waist_${lado}`), cadera = P(`high_hip_${lado}`);
+      const axila = P(`armpit_${lado}`), cintura = P(`waist_${lado}`);
       const pecho = P("chest_mid"), medio = P("torso_mid");
       const hacia = mix(axila, pecho, 0.62);
       lista.push([axila, [hacia[0], hacia[1] + d * 0.05], signo * d * 0.03, 1]);
       lista.push([mix(axila, cintura, 0.3), mix(axila, medio, 0.55), signo * d * 0.03, 0.75]);
-      lista.push([cintura, mix(cintura, medio, 0.5), -signo * d * 0.02, 0.85]);
-      lista.push([mix(cintura, cadera, 0.45), mix(cadera, medio, 0.42), signo * d * 0.02, 0.6]);
+      // (sólo cerca del costado: si cruzan el torso, parecen abdominales)
+      lista.push([cintura, mix(cintura, medio, 0.22), -signo * d * 0.015, 0.5]);
     }
     for (const [t, peso] of [[0.2, 0.7], [0.42, 0.5], [0.63, 0.6], [0.82, 0.7]]) {
       const arriba = mix(P("waist_l"), P("waist_r"), t), abajo = mix(P("hem_l"), P("hem_r"), t);
@@ -171,15 +171,15 @@ const Realismo = (() => {
         lista.push([mix(P(`shoulder_${lado}`), P(`armpit_${lado}`), 0.25), P(`armpit_${lado}`), d * 0.02, 0.7]);
       }
     }
-    x.lineWidth = Math.max(1, d * 0.014);
+    x.lineWidth = Math.max(2, d * 0.045);
     x.lineCap = "round";
-    const dx = Math.max(1, d * 0.026), dy = Math.max(1, d * 0.012);
+    const dx = Math.max(1, d * 0.045), dy = Math.max(1, d * 0.02);
     for (const [a, b, comba, peso] of lista) {
-      x.strokeStyle = `rgba(232,232,232,${(peso * 0.75).toFixed(2)})`;
+      x.strokeStyle = `rgba(200,200,200,${(peso * 0.45).toFixed(2)})`;
       x.beginPath();
       trazo(x, [a[0] + dx, a[1] + dy], [b[0] + dx, b[1] + dy], comba);
       x.stroke();
-      x.strokeStyle = `rgba(24,24,24,${peso.toFixed(2)})`;
+      x.strokeStyle = `rgba(40,40,40,${(peso * 0.8).toFixed(2)})`;
       x.beginPath();
       trazo(x, a, b, comba);
       x.stroke();
@@ -199,8 +199,10 @@ const Realismo = (() => {
    * parecida al fondo). Adentro del torso, la tela se vuelve a poner: ahí no puede faltar.
    */
   function cubrirTorso(ctx, dst) {
-    const claves = ["collar_tip_l", "shoulder_l", "armpit_l", "underbust_l", "waist_l", "high_hip_l", "hem_l", "hem_mid",
-      "hem_r", "high_hip_r", "waist_r", "underbust_r", "armpit_r", "shoulder_r", "collar_tip_r", "neck_v"];
+    // Del pecho para abajo: los hombros y el cuello los decide la silueta (si no, la tela
+    // queda flotando en el aire, afuera del cuerpo)
+    const claves = ["armpit_l", "underbust_l", "waist_l", "high_hip_l", "hem_l", "hem_mid",
+      "hem_r", "high_hip_r", "waist_r", "underbust_r", "armpit_r", "neck_v"];
     if (claves.some(k => !dst[k])) return;
     const cx = (dst.armpit_l[0] + dst.armpit_r[0]) * 0.5, cy = (dst.neck_v[1] + dst.hem_mid[1]) * 0.5;
     ctx.save();
@@ -255,12 +257,12 @@ const Realismo = (() => {
         if (estado.cuadro % (estado.liviano ? 4 : 2) === 0) {
           dibujarPliegues(dst, g, mangaLarga);
           const xs = plieguesSuaves.getContext("2d");
-          xs.filter = `blur(${Math.max(0.6, g.distSh * 0.006).toFixed(1)}px)`;
+          xs.filter = `blur(${Math.max(1.5, g.distSh * 0.028).toFixed(1)}px)`;
           xs.drawImage(pliegues, 0, 0);
           xs.filter = "none";
         }
         ctx.globalCompositeOperation = "hard-light";
-        ctx.globalAlpha = INTENSIDAD_PLIEGUES;
+        ctx.globalAlpha = INTENSIDAD_PLIEGUES * (claridad < 90 ? 1 : 0.5);   // en tela clara se notan mucho más
         ctx.drawImage(plieguesSuaves, 0, 0, W, H);
       }
     }
