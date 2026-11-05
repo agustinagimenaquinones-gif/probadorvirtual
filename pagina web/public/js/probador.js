@@ -340,6 +340,7 @@ function dibujarPrenda() {
   }
   darVolumen(g, img, p.tiene_mangas);
   Realismo.integrar(ctxPrenda, capaPrenda, fuente, g, claridadDe(img), dst, Malla.esMangaLarga(p.puntos));
+  Realismo.protegerPersona(ctxPrenda, capaPrenda, fuente, g, dst, p.tiene_mangas, Malla.esMangaLarga(p.puntos));
   // La prenda nunca tapa la cara
   if (g.medioCara && g.menton && g.nariz) {
     ctxPrenda.globalCompositeOperation = "destination-out";

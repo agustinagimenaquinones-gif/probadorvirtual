@@ -10,6 +10,8 @@
 //      Es una aproximación visual, no una simulación física de la tela.
 //   6. Movimiento: el ruedo y los puños siguen al cuerpo con un pequeño resorte, y se
 //      ignoran los saltos bruscos de la detección.
+//   7. Partes de la persona (partes_worker.js): el pelo, la cara y el cuello quedan por
+//      delante de la prenda, y la ropa propia que asoma cerca se pinta del color de la tela.
 // Todo se hace en el navegador: la imagen de la cámara no sale del dispositivo.
 // ==========================================================
 
@@ -21,6 +23,10 @@ const Realismo = (() => {
   const RIGIDEZ_RESORTE = 170, FRENO_RESORTE = 20;
   const CUADROS_DE_SALTO = 6;        // un cambio que dura más que esto es real, no un error
   const MS_LENTO = 45;               // más que esto entre cuadros: se pasa al modo liviano
+  const MS_ENTRE_PARTES = 180;       // cada cuánto se vuelve a separar a la persona en partes
+  const MS_PARTES_VIEJAS = 1500;     // con una separación más vieja que esto, no se usa
+  const LADO_PARTES = 384;
+  const PELO = 1, PIEL = 2, CARA = 3, ROPA = 4;
   const INTENSIDAD_GRANO = 0.05;
   const SATURACION = 1.28;           // la luz y la suavidad apagan el color: se le devuelve
   // En una tela clara, el mismo oscurecimiento del contorno se nota mucho más
@@ -34,7 +40,10 @@ const Realismo = (() => {
   const ctxMedidor = medidor.getContext("2d", { willReadFrequently: true });
   const hayFiltros = typeof ctxMedidor.filter === "string";
   const estado = { W: 0, H: 0, cuadro: 0, media: 128, tinte: "rgb(255,255,255)", exposicion: 1, grano: null,
-    pose: null, rechazos: 0, resortes: new Map(), tiempo: 0, ultimoCuadro: 0, msCuadro: 16, liviano: false };
+    pose: null, rechazos: 0, resortes: new Map(), tiempo: 0, ultimoCuadro: 0, msCuadro: 16, liviano: false,
+    trabajador: null, ocupado: false, envio: 0, partes: null, sinPartes: false, colorTela: "#808080", colorCuadro: -999 };
+  const capasPartes = { [PELO]: nuevo(), [PIEL]: nuevo(), [CARA]: nuevo(), [ROPA]: nuevo() };
+  const pintura = nuevo();
 
   function preparar(W, H) {
     if (estado.W === W && estado.H === H) return;
@@ -89,6 +98,118 @@ const Realismo = (() => {
       const canal = (c) => Math.round(255 * estado.exposicion * (0.86 + 0.14 * c / maximo));
       estado.tinte = `rgb(${canal(r)},${canal(v)},${canal(a)})`;
     }
+  }
+
+  /** Guarda la separación en partes: una capa por parte, con alfa donde está. */
+  function actualizarPartes(categorias, ancho, alto, cuello = null, W = 0) {
+    for (const parte of [PELO, PIEL, CARA, ROPA]) {
+      const c = capasPartes[parte];
+      if (c.width !== ancho || c.height !== alto) { c.width = ancho; c.height = alto; }
+      const x = c.getContext("2d");
+      const datos = x.createImageData(ancho, alto);
+      for (let i = 0, j = 3; i < categorias.length; i++, j += 4) datos.data[j] = categorias[i] === parte ? 255 : 0;
+      x.putImageData(datos, 0, 0);
+    }
+    estado.partes = { cuando: performance.now(), cuello, W };
+  }
+
+  function escucharTrabajador() {
+    estado.trabajador = new Worker("js/partes_worker.js");
+    estado.trabajador.onmessage = ({ data }) => {
+      if (data.listo) return;
+      if (data.id !== undefined) estado.ocupado = false;
+      if (data.error) { console.info("Partes de la persona:", data.error); return; }
+      if (data.categorias) actualizarPartes(data.categorias, data.ancho, data.alto, estado.cuelloEnviado, estado.W);
+    };
+    // Sin este modelo el probador funciona igual: sólo no separa el pelo y el cuello
+    estado.trabajador.onerror = (e) => { console.info("Partes de la persona:", e.message); estado.sinPartes = true; };
+  }
+
+  /** Manda el cuadro al proceso aparte, si está libre y ya pasó un rato. No espera el resultado. */
+  function enviarCuadro(fuente, g) {
+    const ahora = performance.now();
+    if (estado.sinPartes || estado.liviano || estado.ocupado || ahora - estado.envio < MS_ENTRE_PARTES) return;
+    if (!estado.trabajador) {
+      try { escucharTrabajador(); } catch (e) { estado.sinPartes = true; return; }
+    }
+    const w = fuente.videoWidth || fuente.naturalWidth || fuente.width;
+    const h = fuente.videoHeight || fuente.naturalHeight || fuente.height;
+    if (!w || !h || !window.createImageBitmap) return;
+    estado.ocupado = true;
+    estado.envio = ahora;
+    estado.cuelloEnviado = g.cuello.slice();
+    createImageBitmap(fuente, { resizeWidth: LADO_PARTES, resizeHeight: Math.round(LADO_PARTES * h / w), resizeQuality: "low" })
+      .then((imagen) => estado.trabajador.postMessage({ imagen, id: ahora }, [imagen]))
+      .catch(() => { estado.ocupado = false; });
+  }
+
+  // Dibuja una capa de partes espejada, corrida lo que se movió el cuello desde que se calculó
+  function dibujarParte(ctx, parte, W, H, dx, dy) {
+    ctx.save();
+    ctx.setTransform(-1, 0, 0, 1, W + dx, dy);
+    ctx.drawImage(capasPartes[parte], 0, 0, W, H);
+    ctx.restore();
+  }
+
+  function medirColorTela() {
+    if (estado.cuadro - estado.colorCuadro < 30) return;
+    estado.colorCuadro = estado.cuadro;
+    ctxMedidor.clearRect(0, 0, 8, 8);
+    ctxMedidor.drawImage(copia, 0, 0, 8, 8);
+    const px = ctxMedidor.getImageData(0, 0, 8, 8).data;
+    let r = 0, v = 0, a = 0, n = 0;
+    for (let i = 0; i < px.length; i += 4) {
+      if (px[i + 3] > 40) { r += px[i]; v += px[i + 1]; a += px[i + 2]; n++; }
+    }
+    if (n) estado.colorTela = `rgb(${Math.round(r / n)},${Math.round(v / n)},${Math.round(a / n)})`;
+  }
+
+  /**
+   * Va después de integrar la tela. El pelo y la cara quedan adelante; con mangas, también el
+   * cuello. La ropa propia que asoma (cuello de una camisa, hombros, el espacio junto a una
+   * manga larga) se pinta debajo de la tela, con su color.
+   */
+  function protegerPersona(ctx, capa, fuente, g, dst, tieneMangas, mangaLarga) {
+    enviarCuadro(fuente, g);
+    const p = estado.partes;
+    if (!p || performance.now() - p.cuando > MS_PARTES_VIEJAS) return;
+    const W = capa.width, H = capa.height;
+    const dx = p.cuello ? g.cuello[0] - p.cuello[0] : 0, dy = p.cuello ? g.cuello[1] - p.cuello[1] : 0;
+    medirColorTela();
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = "destination-out";
+    dibujarParte(ctx, PELO, W, H, dx, dy);
+    dibujarParte(ctx, CARA, W, H, dx, dy);
+    const yEscote = dst.neck_v ? dst.neck_v[1] : g.cuello[1];
+    if (tieneMangas) {
+      // El cuello: sólo arriba del escote, para que la tela siga tapando el resto de la piel
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(g.cuello[0] - g.distSh * 0.45, 0, g.distSh * 0.9, yEscote);
+      ctx.clip();
+      dibujarParte(ctx, PIEL, W, H, dx, dy);
+      ctx.restore();
+
+      const xp = pintura.getContext("2d");
+      if (pintura.width !== W || pintura.height !== H) { pintura.width = W; pintura.height = H; }
+      xp.globalCompositeOperation = "copy";
+      dibujarParte(xp, ROPA, W, H, dx, dy);
+      xp.globalCompositeOperation = "source-in";
+      xp.fillStyle = estado.colorTela;
+      xp.fillRect(0, 0, W, H);
+      const hasta = mangaLarga && dst.hem_mid ? dst.hem_mid[1] : (dst.armpit_l ? dst.armpit_l[1] : yEscote);
+      const ancho = g.distSh * (mangaLarga ? 2.2 : 1.05);
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(g.cuello[0] - ancho, 0, ancho * 2, hasta);
+      ctx.clip();
+      ctx.globalCompositeOperation = "destination-over";
+      ctx.drawImage(pintura, 0, 0);
+      ctx.restore();
+    }
+    ctx.restore();
   }
 
   /** Ignora un salto brusco de la detección (hombros que cambian de golpe en un solo cuadro). */
@@ -301,5 +422,5 @@ const Realismo = (() => {
     return estado.liviano ? `saturate(${SATURACION})` : `saturate(${SATURACION}) blur(${(0.45 * W / 1280).toFixed(2)}px)`;
   }
 
-  return { poseEstable, inercia, guardarEntera, cubrirTorso, integrar, suavidad };
+  return { poseEstable, inercia, guardarEntera, cubrirTorso, integrar, protegerPersona, actualizarPartes, suavidad };
 })();
