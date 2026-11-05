@@ -162,7 +162,11 @@ const Realismo = (() => {
     for (let i = 0; i < px.length; i += 4) {
       if (px[i + 3] > 40) { r += px[i]; v += px[i + 1]; a += px[i + 2]; n++; }
     }
-    if (n) estado.colorTela = `rgb(${Math.round(r / n)},${Math.round(v / n)},${Math.round(a / n)})`;
+    if (n) {
+      estado.colorTela = `rgb(${Math.round(r / n)},${Math.round(v / n)},${Math.round(a / n)})`;
+      // El revés de la tela, por dentro del cuello: el mismo color, en sombra
+      estado.colorInterior = `rgb(${Math.round(r / n * 0.5)},${Math.round(v / n * 0.5)},${Math.round(a / n * 0.5)})`;
+    }
   }
 
   // La curva del escote: va de un costado del cuello al otro y pasa por el punto más bajo
@@ -207,6 +211,46 @@ const Realismo = (() => {
     ctx.restore();
   }
 
+  // La parte de atrás del cuello de la prenda: se ve a los costados del cuello, por detrás.
+  // Después se recorta con la piel del cuello, que queda adelante.
+  function cuelloDeAtras(ctx, dst, g) {
+    const l = dst.collar_tip_l, r = dst.collar_tip_r;
+    const sube = g.distSh * 0.08;
+    const cx = (l[0] + r[0]) / 2 + g.uUp[0] * sube, cy = (l[1] + r[1]) / 2 + g.uUp[1] * sube;
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = "source-over";
+    ctx.beginPath();
+    zonaDelCuello(ctx, dst, g);
+    ctx.clip();
+    ctx.beginPath();
+    ctx.moveTo(l[0], l[1]);
+    ctx.quadraticCurveTo(cx, cy, r[0], r[1]);
+    ctx.lineWidth = g.distSh * 0.05;
+    ctx.strokeStyle = estado.colorInterior || "rgba(0,0,0,0.6)";
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // Pinta una parte de la persona del color de la tela, debajo de la tela, dentro de la zona dada
+  function pintarDebajo(ctx, parte, W, H, dx, dy, zona) {
+    const xp = pintura.getContext("2d");
+    if (pintura.width !== W || pintura.height !== H) { pintura.width = W; pintura.height = H; }
+    xp.globalCompositeOperation = "copy";
+    dibujarParte(xp, parte, W, H, dx, dy);
+    xp.globalCompositeOperation = "source-in";
+    xp.fillStyle = estado.colorTela;
+    xp.fillRect(0, 0, W, H);
+    ctx.save();
+    ctx.beginPath();
+    zona();
+    ctx.clip("evenodd");
+    ctx.globalCompositeOperation = "destination-over";
+    ctx.drawImage(pintura, 0, 0);
+    ctx.restore();
+  }
+
   /**
    * Va después de integrar la tela. El pelo y la cara quedan adelante; con mangas, también el
    * cuello. La ropa propia que asoma (cuello de una camisa, hombros, el espacio junto a una
@@ -220,6 +264,7 @@ const Realismo = (() => {
     const W = capa.width, H = capa.height;
     const dx = p.cuello ? g.cuello[0] - p.cuello[0] : 0, dy = p.cuello ? g.cuello[1] - p.cuello[1] : 0;
     medirColorTela();
+    if (mangaLarga) cuelloDeAtras(ctx, dst, g);
     ctx.save();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.globalAlpha = 1;
@@ -236,24 +281,30 @@ const Realismo = (() => {
       dibujarParte(ctx, PIEL, W, H, dx, dy);
       ctx.restore();
 
-      const xp = pintura.getContext("2d");
-      if (pintura.width !== W || pintura.height !== H) { pintura.width = W; pintura.height = H; }
-      xp.globalCompositeOperation = "copy";
-      dibujarParte(xp, ROPA, W, H, dx, dy);
-      xp.globalCompositeOperation = "source-in";
-      xp.fillStyle = estado.colorTela;
-      xp.fillRect(0, 0, W, H);
       const hasta = mangaLarga && dst.hem_mid ? dst.hem_mid[1] : (dst.armpit_l ? dst.armpit_l[1] : yEscote);
       const ancho = g.distSh * (mangaLarga ? 2.2 : 1.05);
-      ctx.save();
-      ctx.beginPath();
-      ctx.rect(g.cuello[0] - ancho, 0, ancho * 2, hasta);
       // Dentro del escote se ve la ropa propia tal cual, sin pintarla del color de la tela
-      zonaDelCuello(ctx, dst, g);
-      ctx.clip("evenodd");
-      ctx.globalCompositeOperation = "destination-over";
-      ctx.drawImage(pintura, 0, 0);
-      ctx.restore();
+      pintarDebajo(ctx, ROPA, W, H, dx, dy, () => {
+        ctx.rect(g.cuello[0] - ancho, 0, ancho * 2, hasta);
+        zonaDelCuello(ctx, dst, g);
+      });
+      if (mangaLarga) {
+        // Manga larga: la piel de los hombros, el pecho y los brazos queda tapada por la tela.
+        // Quedan a la vista el cuello (dentro del escote) y las manos.
+        const arriba = Math.min(dst.collar_tip_l[1], dst.collar_tip_r[1]);
+        pintarDebajo(ctx, PIEL, W, H, dx, dy, () => {
+          ctx.rect(g.cuello[0] - ancho, arriba, ancho * 2, hasta - arriba);
+          zonaDelCuello(ctx, dst, g);
+          for (const [mu, co, vis] of [[g.wrL, g.elL, g.visWrL], [g.wrR, g.elR, g.visWrR]]) {
+            if (!mu || vis < 0.3) continue;
+            const largoAnte = Math.hypot(mu[0] - co[0], mu[1] - co[1]) || 1;
+            const k = g.distSh * 0.10 / largoAnte;
+            const cm = [mu[0] + (mu[0] - co[0]) * k, mu[1] + (mu[1] - co[1]) * k];
+            ctx.moveTo(cm[0] + g.distSh * 0.2, cm[1]);
+            ctx.arc(cm[0], cm[1], g.distSh * 0.2, 0, Math.PI * 2);
+          }
+        });
+      }
     }
     ctx.restore();
   }
@@ -502,5 +553,5 @@ const Realismo = (() => {
     return estado.liviano ? `saturate(${SATURACION})` : `saturate(${SATURACION}) blur(${(0.45 * W / 1280).toFixed(2)}px)`;
   }
 
-  return { poseEstable, inercia, guardarEntera, cubrirTorso, integrar, protegerPersona, actualizarPartes, suavidad };
+  return { poseEstable, inercia, guardarEntera, cubrirTorso, integrar, protegerPersona, actualizarPartes, suavidad, zonaDelCuello };
 })();

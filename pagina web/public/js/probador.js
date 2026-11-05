@@ -351,14 +351,31 @@ function dibujarPrenda() {
     ctxPrenda.fill();
   }
   ctxPrenda.globalCompositeOperation = "source-over";
-  // Sombra suave bajo la tela: la prenda parece apoyada sobre el cuerpo
+  // Sombra suave bajo la tela: la prenda parece apoyada sobre el cuerpo.
+  // Con manga larga, la sombra no entra en el escote (ahí se ve el cuello, no la tela)
+  const escote = Malla.esMangaLarga(p.puntos) && dst.collar_tip_l && dst.neck_v;
   ctx.save();
+  if (escote) {
+    ctx.beginPath();
+    ctx.rect(0, 0, W, H);
+    Realismo.zonaDelCuello(ctx, dst, g);
+    ctx.clip("evenodd");
+  }
   ctx.shadowColor = "rgba(0, 0, 0, 0.28)";
   ctx.shadowBlur = Math.max(4, g.distSh * 0.04);
   ctx.shadowOffsetY = Math.max(1, g.distSh * 0.015);
   ctx.filter = Realismo.suavidad(W);
   ctx.drawImage(capaPrenda, 0, 0);
   ctx.restore();
+  if (escote) {
+    ctx.save();
+    ctx.beginPath();
+    Realismo.zonaDelCuello(ctx, dst, g);
+    ctx.clip();
+    ctx.filter = Realismo.suavidad(W);
+    ctx.drawImage(capaPrenda, 0, 0);
+    ctx.restore();
+  }
   return g;
 }
 
