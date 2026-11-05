@@ -184,8 +184,9 @@ const Malla = (() => {
       // (la tela llega hasta arriba del hombro: si no, se ve la piel entre el hombro y el cuello)
       dst[`shoulder_${lado}`] = sum(dst[`shoulder_${lado}`], por(g.uUp, g.distSh * 0.02));
     }
-    const bajada = clip((src.neck_v[1] - yPuntas) * escala, g.distSh * 0.05, g.distSh * 0.20);
-    dst.neck_v = sum(g.cuello, por(g.uUp, -bajada));
+    // Adelante el cuello redondo queda alto, en la base del cuello (no deja ver la ropa de abajo)
+    const bajada = clip((src.neck_v[1] - yPuntas) * escala, g.distSh * 0.09, g.distSh * 0.13);
+    dst.neck_v = sum(base, por(g.uUp, -bajada));
     dst.collar_top_mid = sum(base, por(g.uUp, (yPuntas - src.collar_top_mid[1]) * escala));
   }
 
