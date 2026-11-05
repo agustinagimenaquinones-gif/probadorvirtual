@@ -173,7 +173,7 @@ const Malla = (() => {
     if (anchoSrc < 1) return;
     const escala = largo(res(dst.armpit_r, dst.armpit_l)) / anchoSrc;
     const yPuntas = (src.collar_tip_l[1] + src.collar_tip_r[1]) * 0.5;
-    const base = sum(g.cuello, por(g.uUp, g.distSh * 0.10));
+    const base = sum(g.cuello, por(g.uUp, g.distSh * 0.14));
     for (const [lado, signo] of [["l", -1], ["r", 1]]) {
       const punta = sum(base, por(g.uSh, signo * anchoCuello * 1.05));
       dst[`collar_tip_${lado}`] = punta;
@@ -181,7 +181,8 @@ const Malla = (() => {
       const dx = Math.min(anchoCuello * 0.7, Math.abs(src[`collar_top_${lado}`][0] - src[`collar_tip_${lado}`][0]) * escala);
       const dy = Math.min(alturaCuello * 0.6, (src[`collar_tip_${lado}`][1] - src[`collar_top_${lado}`][1]) * escala);
       dst[`collar_top_${lado}`] = S(punta, por(g.uSh, signo * dx), por(g.uUp, dy));
-      dst[`shoulder_${lado}`] = sum(dst[`shoulder_${lado}`], por(g.uUp, -g.distSh * 0.03));
+      // (la tela llega hasta arriba del hombro: si no, se ve la piel entre el hombro y el cuello)
+      dst[`shoulder_${lado}`] = sum(dst[`shoulder_${lado}`], por(g.uUp, g.distSh * 0.02));
     }
     const bajada = clip((src.neck_v[1] - yPuntas) * escala, g.distSh * 0.05, g.distSh * 0.20);
     dst.neck_v = sum(g.cuello, por(g.uUp, -bajada));
@@ -436,6 +437,8 @@ const Malla = (() => {
       if (esMangaLarga(prenda.puntos)) {
         mangasHastaLaMuneca(dst, g, holgura);
         cuelloAbierto(dst, prenda.puntos, g, anchoCuello, alturaCuello);
+        // El puño del ruedo junta la tela abajo: el cuerpo queda suelto y cae sobre él
+        for (const lado of ["l", "r"]) dst[`hem_${lado}`] = sum(dst[`hem_${lado}`], por(res(dst.hem_mid, dst[`hem_${lado}`]), 0.06));
       }
     }
     // El ruedo se ve curvo, como un aro alrededor del cuerpo: los costados suben un poco

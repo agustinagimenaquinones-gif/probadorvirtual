@@ -35,6 +35,7 @@ const Realismo = (() => {
   const CUADROS_POR_MEDICION = 15;   // el brillo del lugar cambia lento: no hace falta medirlo siempre
 
   const nuevo = (w = 1, h = 1) => { const c = document.createElement("canvas"); c.width = w; c.height = h; return c; };
+  const redondeo = nuevo();
   const copia = nuevo(), entera = nuevo(), chica = nuevo(), luz = nuevo(), borde = nuevo(), pliegues = nuevo(), plieguesSuaves = nuevo();
   const medidor = nuevo(8, 8);
   const ctxMedidor = medidor.getContext("2d", { willReadFrequently: true });
@@ -247,7 +248,9 @@ const Realismo = (() => {
       ctx.save();
       ctx.beginPath();
       ctx.rect(g.cuello[0] - ancho, 0, ancho * 2, hasta);
-      ctx.clip();
+      // Dentro del escote se ve la ropa propia tal cual, sin pintarla del color de la tela
+      zonaDelCuello(ctx, dst, g);
+      ctx.clip("evenodd");
       ctx.globalCompositeOperation = "destination-over";
       ctx.drawImage(pintura, 0, 0);
       ctx.restore();
@@ -384,6 +387,39 @@ const Realismo = (() => {
     ctx.restore();
   }
 
+  // Umbral para el contorno: lo desenfocado que pasa de la mitad queda sólido, el resto se va
+  let hayUmbral = false;
+  function prepararUmbral() {
+    if (hayUmbral || !document.body) return hayUmbral;
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("width", "0");
+    svg.setAttribute("height", "0");
+    svg.style.position = "absolute";
+    svg.innerHTML = '<filter id="umbralTela" color-interpolation-filters="sRGB"><feComponentTransfer>'
+      + '<feFuncA type="linear" slope="6" intercept="-2.4"/></feComponentTransfer></filter>';
+    document.body.appendChild(svg);
+    hayUmbral = true;
+    return true;
+  }
+
+  /** Redondea el contorno de la prenda: sin las puntas de los triángulos de la malla. */
+  function redondearContorno(ctx, capa, g) {
+    if (!hayFiltros || estado.liviano || !prepararUmbral()) return;
+    const w = Math.ceil(capa.width / 2), h = Math.ceil(capa.height / 2);
+    if (redondeo.width !== w || redondeo.height !== h) { redondeo.width = w; redondeo.height = h; }
+    const x = redondeo.getContext("2d");
+    x.globalCompositeOperation = "copy";
+    x.filter = `blur(${Math.max(2, g.distSh * 0.018).toFixed(1)}px) url(#umbralTela)`;
+    x.drawImage(capa, 0, 0, w, h);
+    x.filter = "none";
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = "destination-in";
+    ctx.drawImage(redondeo, 0, 0, capa.width, capa.height);
+    ctx.restore();
+  }
+
   /** Integra la capa de la prenda (ctx/capa, ya recortada) con lo que ve la cámara. */
   function integrar(ctx, capa, fuente, g, claridad = 128, dst = null, mangaLarga = false) {
     const W = capa.width, H = capa.height;
@@ -403,6 +439,7 @@ const Realismo = (() => {
     ctx.globalAlpha = 1;
     for (let i = 0; i < PASADAS_OPACIDAD; i++) ctx.drawImage(capa, 0, 0);
     ctx.restore();
+    redondearContorno(ctx, capa, g);
     // Los filtros pintan también fuera de la tela: al final se recorta con esta copia
     const xCopia = copia.getContext("2d");
     xCopia.globalCompositeOperation = "copy";
