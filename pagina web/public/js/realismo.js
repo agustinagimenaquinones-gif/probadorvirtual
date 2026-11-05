@@ -35,7 +35,7 @@ const Realismo = (() => {
   const CUADROS_POR_MEDICION = 15;   // el brillo del lugar cambia lento: no hace falta medirlo siempre
 
   const nuevo = (w = 1, h = 1) => { const c = document.createElement("canvas"); c.width = w; c.height = h; return c; };
-  const redondeo = nuevo(), persona = nuevo();
+  const redondeo = nuevo(), persona = nuevo(), cercaTela = nuevo();
   const plano = nuevo();
   const copia = nuevo(), entera = nuevo(), chica = nuevo(), luz = nuevo(), borde = nuevo(), pliegues = nuevo(), plieguesSuaves = nuevo();
   const medidor = nuevo(8, 8);
@@ -128,7 +128,8 @@ const Realismo = (() => {
     const dx = g.cuello[0] - p.cuello[0], dy = g.cuello[1] - p.cuello[1];
     const columna = (x) => Math.round((W + dx - x) / sx);
     const fila = (y) => Math.round((y - dy) / sy);
-    const desde = g.menton || [g.cuello[0], g.cuello[1] - g.distSh * 0.55];
+    // Desde un poco debajo del mentón (la cara es más ancha que el cuello)
+    const desde = g.menton ? [g.menton[0], g.menton[1] + g.distSh * 0.06] : [g.cuello[0], g.cuello[1] - g.distSh * 0.45];
     const j0 = Math.max(0, fila(desde[1])), j1 = Math.min(alto - 1, fila(g.cuello[1] + g.distSh * 0.10));
     let ic = columna(desde[0]);
     if (ic < 1 || ic >= ancho - 1 || j1 - j0 < 4) return null;
@@ -136,11 +137,13 @@ const Realismo = (() => {
     for (let j = j0; j <= j1; j++) {
       const o = j * ancho;
       let c = -1;
-      for (const d of [0, -1, 1, -2, 2, -3, 3, -4, 4]) if (cat[o + ic + d] === PIEL) { c = ic + d; break; }
+      // (el modelo a veces marca el cuello como piel de la cara: las dos cuentan)
+      const piel = (k) => cat[k] === PIEL || cat[k] === CARA;
+      for (const d of [0, -1, 1, -2, 2, -3, 3, -4, 4]) if (piel(o + ic + d)) { c = ic + d; break; }
       if (c < 0) { filas.push({ j, w: 0 }); continue; }
       let a = c, b = c;
-      while (a > 0 && cat[o + a - 1] === PIEL) a--;
-      while (b < ancho - 1 && cat[o + b + 1] === PIEL) b++;
+      while (a > 0 && piel(o + a - 1)) a--;
+      while (b < ancho - 1 && piel(o + b + 1)) b++;
       filas.push({ j, w: (b - a + 1) * sx, c: (a + b) / 2 });
       ic = Math.round((a + b) / 2);
     }
@@ -197,7 +200,10 @@ const Realismo = (() => {
   /** Manda el cuadro al proceso aparte, si está libre y ya pasó un rato. No espera el resultado. */
   function enviarCuadro(fuente, g) {
     const ahora = performance.now();
-    if (estado.sinPartes || estado.liviano || estado.ocupado || ahora - estado.envio < MS_ENTRE_PARTES) return;
+    // (también en el modo liviano, más espaciado: corre aparte y sin esto el cuello, el pelo y
+    // la piel quedan mal tapados justo en las compus más lentas)
+    const espera = estado.liviano ? MS_ENTRE_PARTES * 2.5 : MS_ENTRE_PARTES;
+    if (estado.sinPartes || estado.ocupado || ahora - estado.envio < espera) return;
     if (!estado.trabajador) {
       try { escucharTrabajador(); } catch (e) { estado.sinPartes = true; return; }
     }
@@ -234,6 +240,8 @@ const Realismo = (() => {
       estado.colorTela = `rgb(${Math.round(r / n)},${Math.round(v / n)},${Math.round(a / n)})`;
       // El revés de la tela, por dentro del cuello: el mismo color, en sombra
       estado.colorInterior = `rgb(${Math.round(r / n * 0.5)},${Math.round(v / n * 0.5)},${Math.round(a / n * 0.5)})`;
+      // Junto al borde la tela está en sombra: la ropa propia que asoma ahí toma ese tono
+      estado.colorBorde = `rgb(${Math.round(r / n * 0.72)},${Math.round(v / n * 0.72)},${Math.round(a / n * 0.72)})`;
     }
   }
 
@@ -284,7 +292,8 @@ const Realismo = (() => {
   // cuello, el pelo y la cara, que quedan por delante.
   function cuelloDeAtras(ctx, dst, g) {
     const l = dst.collar_tip_l, r = dst.collar_tip_r, v = dst.neck_v;
-    const sube = g.distSh * 0.08;
+    // Atrás el cuello de la prenda sube por la nuca: se ve detrás del cuello, a los costados
+    const sube = g.distSh * 0.10;
     const cx = (l[0] + r[0]) / 2 + g.uUp[0] * sube, cy = (l[1] + r[1]) / 2 + g.uUp[1] * sube;
     const dx = (v[0] - (l[0] + r[0]) / 2) * 4 / 3, dy = (v[1] - (l[1] + r[1]) / 2) * 4 / 3;
     ctx.save();
@@ -303,7 +312,10 @@ const Realismo = (() => {
     ctx.moveTo(l[0], l[1]);
     ctx.quadraticCurveTo(cx, cy, r[0], r[1]);
     ctx.lineWidth = g.distSh * 0.03;
-    ctx.strokeStyle = "rgba(255,255,255,0.08)";
+    ctx.strokeStyle = "rgba(255,255,255,0.10)";
+    ctx.stroke();
+    ctx.lineWidth = g.distSh * 0.012;
+    ctx.strokeStyle = "rgba(0,0,0,0.35)";
     ctx.stroke();
     ctx.restore();
   }
@@ -381,15 +393,53 @@ const Realismo = (() => {
     ctx.restore();
   }
 
+  // Sombra de contacto: justo arriba del escote el cuello se oscurece un poco, como cuando entra
+  // en la prenda (sin esto el borde de la tela parece pegado encima de la piel)
+  function sombraDeContacto(ctx, dst, g) {
+    ctx.save();
+    ctx.globalCompositeOperation = "source-over";
+    ctx.globalAlpha = 1;
+    ctx.beginPath();
+    zonaDelCuello(ctx, dst, g);
+    ctx.clip();
+    ctx.lineCap = "round";
+    for (const [ancho, alfa] of [[0.11, 0.08], [0.07, 0.11], [0.035, 0.16]]) {
+      ctx.beginPath();
+      curvaEscote(ctx, dst);
+      ctx.lineWidth = g.distSh * ancho;
+      ctx.strokeStyle = `rgba(0,0,0,${alfa})`;
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  // Zona cercana a la tela (la prenda ensanchada un poco): la ropa propia sólo se tapa ahí.
+  // Lejos de la prenda (una capucha, otra campera) pintarla dejaba manchas con forma rara.
+  function zonaCercana(capa, g) {
+    if (!hayFiltros || !prepararUmbral()) return null;
+    const w = Math.ceil(capa.width / 4), h = Math.ceil(capa.height / 4);
+    if (cercaTela.width !== w || cercaTela.height !== h) { cercaTela.width = w; cercaTela.height = h; }
+    const x = cercaTela.getContext("2d");
+    x.globalCompositeOperation = "copy";
+    x.filter = `blur(${Math.max(1.5, g.distSh * 0.012).toFixed(1)}px) url(#dilatarTela)`;
+    x.drawImage(capa, 0, 0, w, h);
+    x.filter = "none";
+    return cercaTela;
+  }
+
   // Pinta una parte de la persona del color de la tela, debajo de la tela, dentro de la zona dada
-  function pintarDebajo(ctx, parte, W, H, dx, dy, zona) {
+  function pintarDebajo(ctx, parte, W, H, dx, dy, zona, limite = null) {
     const xp = pintura.getContext("2d");
     if (pintura.width !== W || pintura.height !== H) { pintura.width = W; pintura.height = H; }
     xp.globalCompositeOperation = "copy";
     dibujarParte(xp, parte, W, H, dx, dy);
     xp.globalCompositeOperation = "source-in";
-    xp.fillStyle = estado.colorTela;
+    xp.fillStyle = (limite && estado.colorBorde) || estado.colorTela;
     xp.fillRect(0, 0, W, H);
+    if (limite) {
+      xp.globalCompositeOperation = "destination-in";
+      xp.drawImage(limite, 0, 0, W, H);
+    }
     ctx.save();
     ctx.beginPath();
     zona();
@@ -428,6 +478,7 @@ const Realismo = (() => {
       ctx.clip();
       dibujarParte(ctx, PIEL, W, H, dx, dy);
       ctx.restore();
+      if (mangaLarga) sombraDeContacto(ctx, dst, g);
 
       const hasta = mangaLarga && dst.hem_mid ? dst.hem_mid[1] : (dst.armpit_l ? dst.armpit_l[1] : yEscote);
       const ancho = g.distSh * (mangaLarga ? 2.2 : 1.05);
@@ -435,7 +486,7 @@ const Realismo = (() => {
       pintarDebajo(ctx, ROPA, W, H, dx, dy, () => {
         ctx.rect(g.cuello[0] - ancho, 0, ancho * 2, hasta);
         zonaDelCuello(ctx, dst, g);
-      });
+      }, zonaCercana(capa, g));
       if (mangaLarga) {
         // Manga larga: la piel de los hombros, el pecho y los brazos queda tapada por la tela.
         // Quedan a la vista el cuello (dentro del escote) y las manos.
@@ -448,13 +499,18 @@ const Realismo = (() => {
             ctx.moveTo(g.nariz[0] + rc, g.nariz[1]);
             ctx.arc(g.nariz[0], g.nariz[1], rc, 0, Math.PI * 2);
           }
-          for (const [mu, co, vis] of [[g.wrL, g.elL, g.visWrL], [g.wrR, g.elR, g.visWrR]]) {
-            if (!mu || vis < 0.3) continue;
-            const largoAnte = Math.hypot(mu[0] - co[0], mu[1] - co[1]) || 1;
-            const k = g.distSh * 0.10 / largoAnte;
-            const cm = [mu[0] + (mu[0] - co[0]) * k, mu[1] + (mu[1] - co[1]) * k];
-            ctx.moveTo(cm[0] + g.distSh * 0.2, cm[1]);
-            ctx.arc(cm[0], cm[1], g.distSh * 0.2, 0, Math.PI * 2);
+          // Las manos: más allá del puño de cada manga (aunque la muñeca se vea poco)
+          for (const lado of ["l", "r"]) {
+            const fuera = dst[`sleeve_cuff_out_${lado}`], dentro = dst[`sleeve_cuff_in_${lado}`];
+            const codo = lado === "l" ? g.elL : g.elR;
+            if (!fuera || !dentro || !codo) continue;
+            const puno = [(fuera[0] + dentro[0]) / 2, (fuera[1] + dentro[1]) / 2];
+            const largoAnte = Math.hypot(puno[0] - codo[0], puno[1] - codo[1]) || 1;
+            const k = g.distSh * 0.16 / largoAnte;
+            const cm = [puno[0] + (puno[0] - codo[0]) * k, puno[1] + (puno[1] - codo[1]) * k];
+            const rm = g.distSh * 0.2;
+            ctx.moveTo(cm[0] + rm, cm[1]);
+            ctx.arc(cm[0], cm[1], rm, 0, Math.PI * 2);
           }
         });
       }
@@ -603,7 +659,9 @@ const Realismo = (() => {
     svg.setAttribute("height", "0");
     svg.style.position = "absolute";
     svg.innerHTML = '<filter id="umbralTela" color-interpolation-filters="sRGB"><feComponentTransfer>'
-      + '<feFuncA type="linear" slope="6" intercept="-2.4"/></feComponentTransfer></filter>';
+      + '<feFuncA type="linear" slope="4" intercept="-1.5"/></feComponentTransfer></filter>'
+      + '<filter id="dilatarTela" color-interpolation-filters="sRGB"><feComponentTransfer>'
+      + '<feFuncA type="linear" slope="8" intercept="-1.5"/></feComponentTransfer></filter>';
     document.body.appendChild(svg);
     hayUmbral = true;
     return true;

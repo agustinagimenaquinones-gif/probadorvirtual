@@ -185,8 +185,9 @@ const Malla = (() => {
       const dx = Math.min(anchoCuello * 0.7, Math.abs(src[`collar_top_${lado}`][0] - src[`collar_tip_${lado}`][0]) * escala);
       const dy = Math.min(alturaCuello * 0.6, (src[`collar_tip_${lado}`][1] - src[`collar_top_${lado}`][1]) * escala);
       dst[`collar_top_${lado}`] = S(punta, por(g.uSh, signo * dx), por(g.uUp, dy));
-      // (la tela llega hasta arriba del hombro: si no, se ve la piel entre el hombro y el cuello)
-      dst[`shoulder_${lado}`] = sum(dst[`shoulder_${lado}`], por(g.uUp, g.distSh * 0.02));
+      // El hombro cae desde el cuello: queda más bajo que el escote (la piel que pudiera quedar
+      // entre los dos la tapa la tela, en realismo.js)
+      dst[`shoulder_${lado}`] = sum(dst[`shoulder_${lado}`], por(g.uUp, -g.distSh * 0.05));
     }
     // Adelante el cuello redondo queda alto, en la base del cuello (no deja ver la ropa de abajo)
     const bajada = clip((src.neck_v[1] - yPuntas) * escala, g.distSh * 0.09, g.distSh * 0.13);
